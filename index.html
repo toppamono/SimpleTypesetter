@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.4</title>
+<title>Simple Typesetter Mobile v0.12.5</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -1525,7 +1525,13 @@
         ev.stopPropagation();
         enterTextEditMode(el,it,ev.clientX,ev.clientY);
       });
-      content.addEventListener("input",()=>{
+      content.addEventListener("input",ev=>{
+        // With pre-wrap, Chromium represents a terminal Shift+Enter using an
+        // extra LF for the caret. Remember it separately from real blank lines.
+        let tail=lastTextFrameLeaf(content), terminalText="";
+        while(tail?.nodeType===3){terminalText=tail.data+terminalText;tail=tail.previousSibling;}
+        it.trailingBreakPlaceholder=/\n\n$/.test(terminalText) &&
+          (ev.inputType==="insertLineBreak" || it.trailingBreakPlaceholder===true);
         it.html=content.innerHTML;
         requestAnimationFrame(()=>renderRubyOverlays(it,el));
       });
@@ -1804,50 +1810,116 @@
   $$("[data-gap]").forEach(b=>b.onclick=()=>gapPlace(b.dataset.gap,+$("#gapInput").value||0));
 
 
+  function lastTextFrameLeaf(root){
+    let node=root;
+    while(node.lastChild) node=node.lastChild;
+    return node;
+  }
+
   function measureTextFrameContent(it, el){
     const content=el?.querySelector(".text-content");
     if(!content) return null;
-
-    const range=document.createRange();
-    range.selectNodeContents(content);
-    const rects=[...range.getClientRects()].filter(r=>r.width>0 || r.height>0);
-    range.detach?.();
-
-    if(rects.length===0) return null;
-
-    const box=content.getBoundingClientRect();
     const cs=getComputedStyle(content);
-    const scaleX=box.width>0 ? box.width/content.offsetWidth : (state.zoom||1);
-    const scaleY=box.height>0 ? box.height/content.offsetHeight : (state.zoom||1);
-    const pxPerMmX=MM_TO_PX*Math.max(scaleX,0.0001);
-    const pxPerMmY=MM_TO_PX*Math.max(scaleY,0.0001);
-
-    let right=0, bottom=0;
-    rects.forEach(r=>{
-      right=Math.max(right,r.right-box.left);
-      bottom=Math.max(bottom,r.bottom-box.top);
+    const frameStyle=getComputedStyle(el);
+    const borderX=parseFloat(frameStyle.borderLeftWidth)+parseFloat(frameStyle.borderRightWidth);
+    const borderY=parseFloat(frameStyle.borderTopWidth)+parseFloat(frameStyle.borderBottomWidth);
+    const paddingX=parseFloat(cs.paddingLeft)+parseFloat(cs.paddingRight);
+    const paddingY=parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom);
+    const lineHeight=parseFloat(cs.lineHeight)||parseFloat(cs.fontSize)*1.5;
+    const width=parseFloat(cs.width);
+    const columns=Math.max(1,it.columnCount??1);
+    // Measure outside the zoomed page, at the existing composing width. Never
+    // squeeze the live frame first: that changes wraps and can hide the last line.
+    const probe=content.cloneNode(true);
+    probe.normalize();
+    const lastLeaf=lastTextFrameLeaf(probe);
+    if(it.trailingBreakPlaceholder && lastLeaf.nodeType===3 && /\n\n$/.test(lastLeaf.data)){
+      lastLeaf.data=lastLeaf.data.slice(0,-1);
+    }
+    probe.removeAttribute("contenteditable");
+    probe.setAttribute("aria-hidden","true");
+    Object.assign(probe.style,{
+      position:"fixed",left:"-100000px",top:"0",right:"auto",bottom:"auto",
+      width:`${width}px`,height:"auto",minHeight:"0",maxHeight:"none",
+      transform:"none",visibility:"hidden",pointerEvents:"none",overflow:"visible",
+      columnCount:String(columns),columnFill:"auto"
     });
-
-    // Ruby overlays live outside .text-content, so include their right/bottom
-    // extent as part of the rendered content bounds.
-    el.querySelectorAll(":scope > .ruby-overlay").forEach(ruby=>{
-      const r=ruby.getBoundingClientRect();
-      right=Math.max(right,r.right-box.left);
-      bottom=Math.max(bottom,r.bottom-box.top);
-    });
-
-    const padRight=parseFloat(cs.paddingRight)||0;
-    const padBottom=parseFloat(cs.paddingBottom)||0;
-    const widthMm=(right+padRight*scaleX)/pxPerMmX;
-    const heightMm=(bottom+padBottom*scaleY)/pxPerMmY;
-
-    return {
-      w:Math.max(2,widthMm),
-      h:Math.max(2,heightMm)
-    };
+    // A terminal marker represents the final insertion line, including blank
+    // paragraphs. Replace the browser's placeholder BR instead of counting it
+    // as another user-entered return. It exists only in this disposable clone.
+    let tail=probe;
+    while(tail.lastChild?.nodeType===1 && /^(DIV|P|SPAN|B|I|STRONG|EM|FONT)$/.test(tail.lastChild.nodeName)){
+      tail=tail.lastChild;
+    }
+    const marker=document.createElement("span");
+    marker.textContent="\u200b";
+    const last=tail.lastChild;
+    if(last?.nodeName==="BR" && (tail.childNodes.length===1 || last.previousSibling?.nodeName==="BR")) last.replaceWith(marker);
+    else tail.appendChild(marker);
+    document.body.appendChild(probe);
+    const ceilMm=px=>Math.max(2,Math.ceil(px/MM_TO_PX*1000)/1000);
+    // Leaf ranges exclude full-width DIV/P boxes; those are layout containers,
+    // not the end of the text. Keep BRs so internal empty lines are represented.
+    function layout(){
+      const origin=probe.getBoundingClientRect();
+      const rects=[];
+      const walker=document.createTreeWalker(probe,NodeFilter.SHOW_TEXT|NodeFilter.SHOW_ELEMENT);
+      let node;
+      while((node=walker.nextNode())){
+        if(node.nodeType!==3 && node.nodeName!=="BR") continue;
+        const range=document.createRange();
+        if(node.nodeType===3) range.selectNodeContents(node);else range.selectNode(node);
+        for(const r of range.getClientRects()) if(r.height>0){
+          rects.push({left:r.left-origin.left,top:r.top-origin.top,right:r.right-origin.left,bottom:r.bottom-origin.top});
+        }
+      }
+      return rects;
+    }
+    try{
+      if(columns===1){
+        const fullHeight=probe.getBoundingClientRect().height;
+        let fittedWidth=it.w;
+        // Only a single composing line can safely lose its right-hand whitespace.
+        // Multiline frames retain their width, explicit returns, and soft wraps.
+        if(fullHeight-paddingY<=lineHeight+.1){
+          const rects=layout();
+          const right=Math.max(0,...rects.map(r=>r.right));
+          const proposed=Math.min(width,Math.max(paddingX,right+parseFloat(cs.paddingRight)+.05));
+          probe.style.width=`${proposed}px`;
+          if(probe.getBoundingClientRect().height<=fullHeight+.1) fittedWidth=ceilMm(proposed+borderX);
+          else probe.style.width=`${width}px`;
+        }
+        return {w:fittedWidth,h:ceilMm(probe.getBoundingClientRect().height+borderY)};
+      }
+      // Columns: keep the column width and, when already fitting, the existing
+      // column breaks. Find the smallest safe height, not the last column's tail.
+      const originalHeight=parseFloat(cs.height);
+      probe.style.height=`${originalHeight}px`;
+      const originalLayout=layout();
+      const fits=(rects,height)=>rects.every(r=>r.right<=width-parseFloat(cs.paddingRight)+.1 &&
+        r.bottom+Math.max(0,(lineHeight-(r.bottom-r.top))/2)<=height-parseFloat(cs.paddingBottom)+.1);
+      const keepBreaks=fits(originalLayout,originalHeight);
+      function safe(height){
+        probe.style.height=`${height}px`;
+        const rects=layout();
+        if(!fits(rects,height)) return false;
+        return !keepBreaks || (rects.length===originalLayout.length && rects.every((r,i)=>
+          Math.abs(r.left-originalLayout[i].left)<.1 && Math.abs(r.top-originalLayout[i].top)<.1 &&
+          Math.abs(r.right-originalLayout[i].right)<.1));
+      }
+      let low=paddingY,high=Math.max(originalHeight,lineHeight+paddingY);
+      while(!safe(high) && high<100000) high*=2;
+      if(!safe(high)) return null;
+      for(let n=0;n<20 && high-low>.01;n++){
+        const mid=(low+high)/2;
+        if(safe(mid)) high=mid;else low=mid;
+      }
+      return {w:it.w,h:ceilMm(high+borderY+.1)};
+    }finally{probe.remove();}
   }
 
   function fitSelectedTextFrameToContent(){
+    if(state.previewMode) return;
     const it=singleSelected();
     if(!it || it.type!=="text"){
       setStatus("文字枠を1つ選択してください");
@@ -1861,40 +1933,17 @@
     // Commit the current edit before measuring the rendered text.
     if(content.isContentEditable) it.html=content.innerHTML;
 
-    if(!(content.textContent||"").trim() && !content.querySelector("img,svg,canvas")){
+    if(!content.textContent && !content.querySelector("br,img,svg,canvas")){
       setStatus("文字が入っていません");
       return;
     }
 
-    const applyMeasuredSize=()=>{
-      const measured=measureTextFrameContent(it,el);
-      if(!measured) return false;
-
-      // Keep the upper-left corner fixed. Only the right and bottom edges move.
-      it.w=round(Math.min(it.w,measured.w),3);
-      it.h=round(Math.min(it.h,measured.h),3);
-      syncSelectedToDOM();
-      refreshTransform();
-      refreshSelInfo();
-      refreshColumnWidth(it);
-      return true;
-    };
-
-    // First trim the right/bottom whitespace. Then remeasure after reflow so
-    // wrapped text gets an exact final bottom edge.
-    if(!applyMeasuredSize()) return;
-    requestAnimationFrame(()=>{
-      const measured=measureTextFrameContent(it,el);
-      if(measured){
-        it.w=round(Math.max(2,measured.w),3);
-        it.h=round(Math.max(2,measured.h),3);
-        syncSelectedToDOM();
-        refreshTransform();
-        refreshSelInfo();
-        refreshColumnWidth(it);
-      }
-      setStatus("文字内容に枠を合わせました");
-    });
+    const measured=measureTextFrameContent(it,el);
+    if(!measured) return;
+    it.w=measured.w;it.h=measured.h;
+    syncSelectedToDOM();
+    refreshTransform();refreshSelInfo();refreshColumnWidth(it);
+    setStatus("折り返し・改行を保って文章の末尾に枠を合わせました");
   }
 
   $("#fitTextFrameBtn").onclick=fitSelectedTextFrameToContent;
