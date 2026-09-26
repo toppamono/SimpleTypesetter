@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.10</title>
+<title>Simple Typesetter Mobile v0.12.11</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -697,7 +697,7 @@
   @media (max-width:900px){
     :root{--transform-h:40px}
     .mobile-transform{
-      grid-template-columns:26px 26px 26px 28px repeat(4,minmax(0,1fr)) 60px!important;
+      grid-template-columns:26px 26px 26px 28px repeat(4,minmax(0,1fr)) 30px!important;
       column-gap:2px!important;padding:3px 4px!important;
       background:linear-gradient(#f0f0f0,#d9d9d9)!important;
       border-bottom:1px solid #999;box-shadow:inset 0 1px #fff;
@@ -710,17 +710,16 @@
     .mobile-transform .m-field input{height:25px!important;border:1px solid #aaa!important;
       border-top-color:#888!important;box-shadow:inset 0 1px 2px #0000000d!important;font-size:11px!important;line-height:normal}
     .mobile-transform .m-field input:disabled{background:#e5e5e5!important;color:#777}
-    .mobile-transform .m-preview-btn{width:60px!important;height:34px!important;
-      display:flex;flex-direction:column;gap:0;padding:1px!important;
+    .mobile-transform .m-preview-btn{width:30px!important;height:30px!important;
+      display:grid;place-items:center;gap:0;padding:0!important;
       border:1px solid #aaa;background:linear-gradient(#fafafa,#dedede)}
     .mobile-transform .m-preview-btn svg{width:18px;height:18px}
-    .mobile-transform .mode-label{font-size:9px;line-height:12px}
     .mobile-transform .m-preview-btn.preview-on{background:#d5e2ef!important;box-shadow:inset 0 0 0 1px #6585a5!important}
     @media(max-width:360px){
-      .mobile-transform{grid-template-columns:23px 23px 23px 26px repeat(4,minmax(0,1fr)) 56px!important;column-gap:1px!important;padding:3px 2px!important}
+      .mobile-transform{grid-template-columns:23px 23px 23px 26px repeat(4,minmax(0,1fr)) 28px!important;column-gap:1px!important;padding:3px 2px!important}
       .mobile-transform .m-btn{width:23px!important}
       .mobile-transform .m-anchor-grid{width:26px!important;min-width:26px!important}
-      .mobile-transform .m-preview-btn{width:56px!important}
+      .mobile-transform .m-preview-btn{width:28px!important}
       .mobile-transform .m-field input{font-size:10px!important}
     }
   }
@@ -756,7 +755,6 @@
     <button class="m-btn m-preview-btn mode-btn" id="mPreviewBtn" title="現在：作業モード。クリックでプレビュー" aria-label="現在：作業モード。プレビューに切り替え" aria-pressed="false">
       <svg class="work-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM2 7h20M8 1v22"/><path d="M11 11h5v6h-5z" stroke-dasharray="2 1"/></svg>
       <svg class="preview-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM8 8h8M8 12h8M8 16h5"/></svg>
-      <span class="mode-label">作業</span>
     </button>
   </div>
 
@@ -839,7 +837,6 @@
     <button class="mode-btn" id="desktopPreviewBtn" title="現在：作業モード。クリックでプレビュー" aria-label="現在：作業モード。プレビューに切り替え" aria-pressed="false">
       <svg class="work-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM2 7h20M8 1v22"/><path d="M11 11h5v6h-5z" stroke-dasharray="2 1"/></svg>
       <svg class="preview-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM8 8h8M8 12h8M8 16h5"/></svg>
-      <span class="mode-label">作業</span>
     </button>
   </div>
 
@@ -1107,7 +1104,6 @@
       btn.classList.toggle("preview-on", state.previewMode);
       const mode=state.previewMode ? "プレビュー" : "作業";
       const next=state.previewMode ? "作業" : "プレビュー";
-      btn.querySelector(".mode-label").textContent=mode;
       btn.title=`現在：${mode}モード。クリックで${next}`;
       btn.setAttribute("aria-label", `現在：${mode}モード。${next}に切り替え`);
       btn.setAttribute("aria-pressed", String(state.previewMode));
@@ -1128,6 +1124,7 @@
 
   function togglePreviewMode(){
     setPreviewMode(!state.previewMode);
+    if(isMobileUI()) resetMobileFullView();
   }
 
   function updateMobileToolActive(tool){
