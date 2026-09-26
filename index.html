@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.2</title>
+<title>Simple Typesetter Mobile v0.12.3</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -806,6 +806,8 @@
     <button class="toolbtn" data-tool="image">画像枠</button>
     <button class="toolbtn" data-tool="rect">四角形</button>
     <button class="toolbtn" data-tool="table">表</button>
+    <button class="toolbtn" id="fitTextFrameBtn" type="button" disabled
+      title="選択した文字枠の右・下の余白を詰めて、文字内容に枠を合わせます">枠を内容に合わせる</button>
     <span style="width:1px;height:26px;background:#aaa;margin:0 2px"></span>
     <label>用紙</label>
     <select id="paperSelect">
@@ -1763,6 +1765,94 @@
   $$("[data-gap]").forEach(b=>b.onclick=()=>gapPlace(b.dataset.gap,+$("#gapInput").value||0));
 
 
+  function measureTextFrameContent(it, el){
+    const content=el?.querySelector(".text-content");
+    if(!content) return null;
+
+    const range=document.createRange();
+    range.selectNodeContents(content);
+    const rects=[...range.getClientRects()].filter(r=>r.width>0 || r.height>0);
+    range.detach?.();
+
+    if(rects.length===0) return null;
+
+    const box=content.getBoundingClientRect();
+    const cs=getComputedStyle(content);
+    const scaleX=box.width>0 ? box.width/content.offsetWidth : (state.zoom||1);
+    const scaleY=box.height>0 ? box.height/content.offsetHeight : (state.zoom||1);
+    const pxPerMmX=MM_TO_PX*Math.max(scaleX,0.0001);
+    const pxPerMmY=MM_TO_PX*Math.max(scaleY,0.0001);
+
+    let right=0, bottom=0;
+    rects.forEach(r=>{
+      right=Math.max(right,r.right-box.left);
+      bottom=Math.max(bottom,r.bottom-box.top);
+    });
+
+    const padRight=parseFloat(cs.paddingRight)||0;
+    const padBottom=parseFloat(cs.paddingBottom)||0;
+    const widthMm=(right+padRight)/pxPerMmX;
+    const heightMm=(bottom+padBottom)/pxPerMmY;
+
+    return {
+      w:Math.max(2,widthMm),
+      h:Math.max(2,heightMm)
+    };
+  }
+
+  function fitSelectedTextFrameToContent(){
+    const it=singleSelected();
+    if(!it || it.type!=="text"){
+      setStatus("文字枠を1つ選択してください");
+      return;
+    }
+
+    const el=pageEl.querySelector(`.obj[data-id="${it.id}"]`);
+    const content=el?.querySelector(".text-content");
+    if(!el || !content) return;
+
+    // Commit the current edit before measuring the rendered text.
+    if(content.isContentEditable) it.html=content.innerHTML;
+
+    if(!(content.textContent||"").trim() && !content.querySelector("img,svg,canvas")){
+      setStatus("文字が入っていません");
+      return;
+    }
+
+    const applyMeasuredSize=()=>{
+      const measured=measureTextFrameContent(it,el);
+      if(!measured) return false;
+
+      // Keep the upper-left corner fixed. Only the right and bottom edges move.
+      it.w=round(Math.min(it.w,measured.w),3);
+      it.h=round(Math.min(it.h,measured.h),3);
+      syncSelectedToDOM();
+      refreshTransform();
+      refreshSelInfo();
+      refreshColumnWidth(it);
+      return true;
+    };
+
+    // First trim the right/bottom whitespace. Then remeasure after reflow so
+    // wrapped text gets an exact final bottom edge.
+    if(!applyMeasuredSize()) return;
+    requestAnimationFrame(()=>{
+      const measured=measureTextFrameContent(it,el);
+      if(measured){
+        it.w=round(Math.max(2,measured.w),3);
+        it.h=round(Math.max(2,measured.h),3);
+        syncSelectedToDOM();
+        refreshTransform();
+        refreshSelInfo();
+        refreshColumnWidth(it);
+      }
+      setStatus("文字内容に枠を合わせました");
+    });
+  }
+
+  $("#fitTextFrameBtn").onclick=fitSelectedTextFrameToContent;
+
+
   function normalizeFontValue(font){
     const f=String(font||"");
     if(f.includes(",") || f==="sans-serif" || f==="serif" || f==="monospace") return f;
@@ -1795,6 +1885,7 @@
     ["rubyRatioInput","rubyBtn","columnCountInput","columnGapInput",
        "insetTopInput","insetRightInput","insetBottomInput","insetLeftInput"].forEach(id=>$("#"+id).disabled=!textOk);
     $("#columnWidthOutput").disabled=!textOk;
+    $("#fitTextFrameBtn").disabled=!textOk;
 
     if(typeOk){
       $("#fontSelect").value=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
