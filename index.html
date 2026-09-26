@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.9</title>
+<title>Simple Typesetter Mobile v0.12.10</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -1054,26 +1054,8 @@
   const gesture={
     mode:null,
     startDistance:0,
-    startZoom:1,
-    panStartX:0,
-    panStartY:0,
-    panScrollLeft:0,
-    panScrollTop:0,
-    threeStartTime:0,
-    threeStartX:0,
-    threeStartY:0,
-    threeMoved:false,
-    lastThreeTapTime:0,
-    lastThreeTapX:0,
-    lastThreeTapY:0,
-    pointerPan3:false,
-    pointerThreeStartTime:0,
-    pointerThreeStartX:0,
-    pointerThreeStartY:0,
-    pointerThreeMoved:false
+    startZoom:1
   };
-
-  const touchPointers=new Map();
 
   function closeSheets(){
     $("#pagesPanel")?.classList.remove("sheet-open");
@@ -1261,28 +1243,6 @@
       state.drawing=null;
       $("#drawGhost")?.remove();
     }
-  }
-
-  function finishThreeFingerTap(startTime,startX,startY,moved){
-    const now=performance.now();
-    const duration=now-startTime;
-    const isTap=!moved && duration<380;
-    if(!isTap) return false;
-
-    const nearPrevious=
-      now-gesture.lastThreeTapTime<460 &&
-      Math.hypot(startX-gesture.lastThreeTapX,startY-gesture.lastThreeTapY)<65;
-
-    if(nearPrevious){
-      gesture.lastThreeTapTime=0;
-      resetMobileFullView();
-      return true;
-    }
-
-    gesture.lastThreeTapTime=now;
-    gesture.lastThreeTapX=startX;
-    gesture.lastThreeTapY=startY;
-    return false;
   }
 
   function zoomMobileAround(clientX,clientY,newZoom){
@@ -2533,181 +2493,37 @@
 
   const canvasWrap=$("#canvasWrap");
 
-  // Robust three-finger path. Pointer Events track each contact by id and
-  // avoid relying on a third TouchEvent being delivered while a pinch is active.
-  canvasWrap?.addEventListener("pointerdown",e=>{
-    if(!isMobileUI() || e.pointerType!=="touch") return;
-    touchPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-
-    if(touchPointers.size>=2) cancelObjectGestureForMultitouch();
-
-    if(touchPointers.size===3){
-      e.preventDefault();
-      closeSheets();
-
-      const pts=[...touchPointers.values()];
-      const c={
-        x:pts.reduce((sum,p)=>sum+p.x,0)/pts.length,
-        y:pts.reduce((sum,p)=>sum+p.y,0)/pts.length
-      };
-
-      gesture.pointerPan3=true;
-      gesture.mode="pan3pointer";
-      gesture.panStartX=c.x;
-      gesture.panStartY=c.y;
-      gesture.panScrollLeft=canvasWrap.scrollLeft;
-      gesture.panScrollTop=canvasWrap.scrollTop;
-      gesture.pointerThreeStartTime=performance.now();
-      gesture.pointerThreeStartX=c.x;
-      gesture.pointerThreeStartY=c.y;
-      gesture.pointerThreeMoved=false;
-      setStatus("3本指で移動");
-    }
-  },{capture:true});
-
-  canvasWrap?.addEventListener("pointermove",e=>{
-    if(!isMobileUI() || e.pointerType!=="touch" || !touchPointers.has(e.pointerId)) return;
-    touchPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-
-    if(!gesture.pointerPan3 || touchPointers.size<3) return;
-    e.preventDefault();
-
-    const pts=[...touchPointers.values()].slice(0,3);
-    const c={
-      x:pts.reduce((sum,p)=>sum+p.x,0)/pts.length,
-      y:pts.reduce((sum,p)=>sum+p.y,0)/pts.length
-    };
-    const dx=c.x-gesture.panStartX;
-    const dy=c.y-gesture.panStartY;
-
-    if(Math.hypot(
-      c.x-gesture.pointerThreeStartX,
-      c.y-gesture.pointerThreeStartY
-    )>10) gesture.pointerThreeMoved=true;
-
-    canvasWrap.scrollLeft=gesture.panScrollLeft-dx;
-    canvasWrap.scrollTop=gesture.panScrollTop-dy;
-  },{capture:true});
-
-  const finishPointerContact=e=>{
-    if(e.pointerType!=="touch") return;
-
-    const hadThree=gesture.pointerPan3 && touchPointers.size>=3;
-    touchPointers.delete(e.pointerId);
-
-    if(hadThree && touchPointers.size<3){
-      finishThreeFingerTap(
-        gesture.pointerThreeStartTime,
-        gesture.pointerThreeStartX,
-        gesture.pointerThreeStartY,
-        gesture.pointerThreeMoved
-      );
-      gesture.pointerPan3=false;
-      gesture.mode=null;
-    }
-
-    if(touchPointers.size===0){
-      gesture.pointerPan3=false;
-    }
-  };
-
-  canvasWrap?.addEventListener("pointerup",finishPointerContact,{capture:true});
-  canvasWrap?.addEventListener("pointercancel",finishPointerContact,{capture:true});
-
-
   canvasWrap?.addEventListener("touchstart",e=>{
-    if(!isMobileUI()) return;
-    const n=e.touches.length;
-    if(n<2) return;
+    if(!isMobileUI() || e.touches.length!==2) return;
 
     e.preventDefault();
     closeSheets();
     cancelObjectGestureForMultitouch();
 
-    if(n>=3){
-      if(gesture.pointerPan3) return;
-      const c=touchCenter(e.touches);
-      gesture.mode="pan3";
-      gesture.panStartX=c.x;
-      gesture.panStartY=c.y;
-      gesture.panScrollLeft=canvasWrap.scrollLeft;
-      gesture.panScrollTop=canvasWrap.scrollTop;
-      gesture.threeStartTime=performance.now();
-      gesture.threeStartX=c.x;
-      gesture.threeStartY=c.y;
-      gesture.threeMoved=false;
-      setStatus("3本指で移動");
-      return;
-    }
-
-    const c=touchCenter(e.touches);
     gesture.mode="pinch2";
     gesture.startDistance=Math.max(1,touchDistance(e.touches));
     gesture.startZoom=state.zoom||1;
-    gesture.pinchCenterX=c.x;
-    gesture.pinchCenterY=c.y;
     setStatus("2本指で拡大・縮小");
   },{passive:false,capture:true});
 
   canvasWrap?.addEventListener("touchmove",e=>{
-    if(!isMobileUI() || !gesture.mode) return;
+    if(!isMobileUI() || gesture.mode!=="pinch2" || e.touches.length!==2) return;
     e.preventDefault();
 
-    if(gesture.mode==="pan3"){
-      if(gesture.pointerPan3) return;
-      if(e.touches.length<3) return;
-      const c=touchCenter(e.touches);
-      const dx=c.x-gesture.panStartX;
-      const dy=c.y-gesture.panStartY;
-      if(Math.hypot(c.x-gesture.threeStartX,c.y-gesture.threeStartY)>12) gesture.threeMoved=true;
-      canvasWrap.scrollLeft=gesture.panScrollLeft-dx;
-      canvasWrap.scrollTop=gesture.panScrollTop-dy;
-      return;
-    }
-
-    if(gesture.mode==="pinch2"){
-      if(e.touches.length>=3){
-        const c=touchCenter(e.touches);
-        gesture.mode="pan3";
-        gesture.panStartX=c.x;
-        gesture.panStartY=c.y;
-        gesture.panScrollLeft=canvasWrap.scrollLeft;
-        gesture.panScrollTop=canvasWrap.scrollTop;
-        gesture.threeStartTime=performance.now();
-        gesture.threeStartX=c.x;
-        gesture.threeStartY=c.y;
-        gesture.threeMoved=false;
-        return;
-      }
-      if(e.touches.length!==2) return;
-      const d=Math.max(1,touchDistance(e.touches));
-      const c=touchCenter(e.touches);
-      const next=gesture.startZoom*(d/gesture.startDistance);
-      zoomMobileAround(c.x,c.y,next);
-    }
+    const d=Math.max(1,touchDistance(e.touches));
+    const c=touchCenter(e.touches);
+    const next=gesture.startZoom*(d/gesture.startDistance);
+    zoomMobileAround(c.x,c.y,next);
   },{passive:false,capture:true});
 
   canvasWrap?.addEventListener("touchend",e=>{
-    if(!isMobileUI() || !gesture.mode) return;
-    e.preventDefault();
-
-    if(e.touches.length>0) return;
-
-    if(gesture.mode==="pan3" && !gesture.pointerPan3){
-      finishThreeFingerTap(
-        gesture.threeStartTime,
-        gesture.threeStartX,
-        gesture.threeStartY,
-        gesture.threeMoved
-      );
-    }
-
-    gesture.mode=null;
+    if(!isMobileUI() || gesture.mode!=="pinch2") return;
+    if(e.touches.length<2) gesture.mode=null;
   },{passive:false,capture:true});
 
-  canvasWrap?.addEventListener("touchcancel",e=>{
+  canvasWrap?.addEventListener("touchcancel",()=>{
     if(!isMobileUI()) return;
-    if(!gesture.pointerPan3) gesture.mode=null;
+    gesture.mode=null;
     cancelObjectGestureForMultitouch();
   },{passive:false,capture:true});
 
