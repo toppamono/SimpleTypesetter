@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.5</title>
+<title>Simple Typesetter Mobile v0.12.6</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -1366,6 +1366,10 @@
       if(prev && prev.isContentEditable) prev.blur();
     }
 
+    // Text editing is a Type-tool operation. Keep the T icon and its
+    // contextual second toolbar active for the whole editing session.
+    if(state.tool!=="text") setTool("text");
+
     state.selected.clear();
     state.selected.add(it.id);
     applySelectionClasses();
@@ -1700,11 +1704,29 @@
     const x=Math.min(p.x,state.drawing.start.x),y=Math.min(p.y,state.drawing.start.y);
     const w=Math.abs(p.x-state.drawing.start.x),h=Math.abs(p.y-state.drawing.start.y);
     $("#drawGhost")?.remove(); state.drawing=null;
-    if(w<3||h<3){setTool("select");return;}
+
+    if(w<3||h<3){
+      // A cancelled Type-tool drag should not silently switch back to Selection.
+      if(state.tool!=="text") setTool("select");
+      return;
+    }
+
     if(state.tool==="image"){
       const it=addItem("image",{x,y,w,h});
-      $("#imageFile").dataset.target=it.id; $("#imageFile").click();
-    }else addItem(state.tool,{x,y,w,h});
+      $("#imageFile").dataset.target=it.id;
+      $("#imageFile").click();
+      setTool("select");
+      return;
+    }
+
+    if(state.tool==="text"){
+      const it=addItem("text",{x,y,w,h});
+      const el=pageEl.querySelector(`.obj[data-id="${it.id}"]`);
+      enterTextEditMode(el,it,ev.clientX,ev.clientY);
+      return;
+    }
+
+    addItem(state.tool,{x,y,w,h});
     setTool("select");
   });
 
