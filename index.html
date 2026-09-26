@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.12</title>
+<title>Simple Typesetter Mobile v0.12.13</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -1050,9 +1050,10 @@
 
   const gesture={
     mode:null,
-    lastDistance:0,
-    lastCenterX:0,
-    lastCenterY:0
+    startDistance:0,
+    startZoom:1,
+    anchorPageX:0,
+    anchorPageY:0
   };
 
   function closeSheets(){
@@ -1243,25 +1244,26 @@
     }
   }
 
-  function zoomMobileAround(clientX,clientY,newZoom){
+  function applyTwoFingerView(clientX,clientY,newZoom){
     const wrap=$("#canvasWrap");
     if(!wrap) return;
-    const prevZoom=state.zoom||1;
-    const before=pageEl.getBoundingClientRect();
-    const localX=(clientX-before.left)/prevZoom;
-    const localY=(clientY-before.top)/prevZoom;
 
-    state.zoom=Math.max(.15,Math.min(5,newZoom));
-    setPageSize(...state.doc.pageSize);
+    const z=Math.max(.15,Math.min(5,newZoom));
+    if(Math.abs(z-state.zoom)>.0001){
+      state.zoom=z;
+      setPageSize(...state.doc.pageSize);
+      const zs=$("#zoomSelect");
+      if(zs) zs.value=String(Math.round(state.zoom*100));
+    }
 
-    const after=pageEl.getBoundingClientRect();
-    const afterX=after.left+localX*state.zoom;
-    const afterY=after.top+localY*state.zoom;
-    wrap.scrollLeft+=afterX-clientX;
-    wrap.scrollTop+=afterY-clientY;
-
-    const zs=$("#zoomSelect");
-    if(zs) zs.value=String(Math.round(state.zoom*100));
+    // Keep the page coordinate captured under the initial two-finger midpoint
+    // under the CURRENT midpoint. This performs pan and zoom in one correction,
+    // avoiding the competing scroll corrections that are unstable on Android.
+    const rect=pageEl.getBoundingClientRect();
+    const anchorScreenX=rect.left+gesture.anchorPageX*state.zoom;
+    const anchorScreenY=rect.top+gesture.anchorPageY*state.zoom;
+    wrap.scrollLeft+=anchorScreenX-clientX;
+    wrap.scrollTop+=anchorScreenY-clientY;
   }
 
 
@@ -2499,10 +2501,14 @@
     cancelObjectGestureForMultitouch();
 
     const c=touchCenter(e.touches);
+    const rect=pageEl.getBoundingClientRect();
+    const z=state.zoom||1;
+
     gesture.mode="pinch2";
-    gesture.lastDistance=Math.max(1,touchDistance(e.touches));
-    gesture.lastCenterX=c.x;
-    gesture.lastCenterY=c.y;
+    gesture.startDistance=Math.max(1,touchDistance(e.touches));
+    gesture.startZoom=z;
+    gesture.anchorPageX=(c.x-rect.left)/z;
+    gesture.anchorPageY=(c.y-rect.top)/z;
     setStatus("2本指で拡大・縮小・移動");
   },{passive:false,capture:true});
 
@@ -2512,23 +2518,9 @@
 
     const c=touchCenter(e.touches);
     const d=Math.max(1,touchDistance(e.touches));
+    const nextZoom=gesture.startZoom*(d/Math.max(1,gesture.startDistance));
 
-    // Two-finger translation: move the canvas by the movement of the midpoint.
-    const dx=c.x-gesture.lastCenterX;
-    const dy=c.y-gesture.lastCenterY;
-    canvasWrap.scrollLeft-=dx;
-    canvasWrap.scrollTop-=dy;
-
-    // Two-finger scale: zoom by the change in finger spacing, around the
-    // current midpoint so panning and zooming can happen at the same time.
-    const ratio=d/Math.max(1,gesture.lastDistance);
-    if(Math.abs(ratio-1)>.001){
-      zoomMobileAround(c.x,c.y,(state.zoom||1)*ratio);
-    }
-
-    gesture.lastDistance=d;
-    gesture.lastCenterX=c.x;
-    gesture.lastCenterY=c.y;
+    applyTwoFingerView(c.x,c.y,nextZoom);
   },{passive:false,capture:true});
 
   canvasWrap?.addEventListener("touchend",e=>{
