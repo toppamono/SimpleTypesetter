@@ -1789,10 +1789,18 @@
       bottom=Math.max(bottom,r.bottom-box.top);
     });
 
+    // Ruby overlays live outside .text-content, so include their right/bottom
+    // extent as part of the rendered content bounds.
+    el.querySelectorAll(":scope > .ruby-overlay").forEach(ruby=>{
+      const r=ruby.getBoundingClientRect();
+      right=Math.max(right,r.right-box.left);
+      bottom=Math.max(bottom,r.bottom-box.top);
+    });
+
     const padRight=parseFloat(cs.paddingRight)||0;
     const padBottom=parseFloat(cs.paddingBottom)||0;
-    const widthMm=(right+padRight)/pxPerMmX;
-    const heightMm=(bottom+padBottom)/pxPerMmY;
+    const widthMm=(right+padRight*scaleX)/pxPerMmX;
+    const heightMm=(bottom+padBottom*scaleY)/pxPerMmY;
 
     return {
       w:Math.max(2,widthMm),
