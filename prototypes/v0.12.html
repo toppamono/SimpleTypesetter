@@ -1,0 +1,2023 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Simple Typesetter Mobile v0.12</title>
+<style>
+  :root{
+    --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
+    --accent:#1f6feb; --page-shadow:0 2px 14px rgba(0,0,0,.22);
+    --leftw:162px; --rightw:280px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;font-family:"Yu Gothic UI","Meiryo",system-ui,sans-serif;color:var(--ink);background:#cfcfcf}
+  button,input,select{font:inherit}
+  button{cursor:pointer}
+  #app{height:100%;display:grid;grid-template-rows:32px 42px 1fr 24px;overflow:hidden}
+  .menubar,.toolbar,.status{background:var(--ui);border-color:var(--line)}
+  .menubar{display:flex;align-items:center;gap:2px;padding:0 6px;border-bottom:1px solid var(--line)}
+  .menubar button{border:0;background:transparent;padding:5px 8px;border-radius:3px}
+  .menubar button:hover{background:#ddd}
+  .toolbar{display:flex;align-items:center;gap:5px;padding:4px 7px;border-bottom:1px solid var(--line)}
+  .toolbtn,.mini{border:1px solid #aaa;background:#fafafa;border-radius:3px;padding:5px 9px}
+  .toolbtn.active{background:#d9e8ff;border-color:#6b9eea}
+  .toolbar .spacer{flex:1}
+  .toolbar label{font-size:12px;color:#444}
+  .toolbar select{height:28px}
+  .work{display:grid;grid-template-columns:var(--leftw) 1fr var(--rightw);min-height:0}
+  .panel{background:var(--ui2);border-right:1px solid var(--line);overflow:auto}
+  .panel.right{border-right:0;border-left:1px solid var(--line)}
+  .panel h3{font-size:12px;margin:0;padding:7px 9px;background:#e4e4e4;border-bottom:1px solid var(--line)}
+  .pages{padding:8px}
+  .page-row{display:flex;align-items:center;gap:6px;padding:4px;border:1px solid transparent;border-radius:3px;margin-bottom:4px}
+  .page-row.active{background:#dbeaff;border-color:#82aee9}
+  .page-thumb{width:36px;height:52px;background:white;border:1px solid #999;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+  .page-name{font-size:12px}
+  .canvas-wrap{position:relative;overflow:auto;background:#bdbdbd}
+  #canvasHost{position:relative;margin:32px auto 60px;transform-origin:top left}
+  #page{position:relative;background:#fff;box-shadow:var(--page-shadow);overflow:hidden;user-select:none}
+  .guide{position:absolute;background:#38a7ff;opacity:.6;pointer-events:none;z-index:9000}
+  .guide.v{top:0;bottom:0;width:1px}
+  .guide.h{left:0;right:0;height:1px}
+  .obj{position:absolute;border:1px solid transparent;min-width:2mm;min-height:2mm}
+  .obj.selected{outline:1px solid var(--accent);outline-offset:-1px}
+  .obj.text{overflow:visible}
+  .obj.image{overflow:hidden;background:#f7f7f7}
+  .obj.rect{border:1px solid #222}
+  .content{position:absolute;inset:0;overflow:hidden}
+  .text-content{padding:0;white-space:pre-wrap;overflow:hidden;outline:none;user-select:text;line-height:1.5}
+  .text-content[contenteditable="true"]{cursor:text;background:rgba(255,250,210,.25)}
+  .ruby-overlay{position:absolute;z-index:30;pointer-events:none;white-space:nowrap;line-height:1;transform:translate(-50%,-100%);transform-origin:center bottom;color:#111}
+  .image-content img{width:100%;height:100%;object-fit:cover;display:block}
+  .handle{display:none;position:absolute;width:8px;height:8px;background:var(--accent);right:-4px;bottom:-4px;z-index:20;cursor:nwse-resize}
+  .selected>.handle{display:block}
+  .measure-tag{display:none;position:absolute;left:0;top:-18px;background:#1f6feb;color:#fff;font-size:10px;padding:1px 4px;border-radius:2px;white-space:nowrap}
+  .selected>.measure-tag{display:block}
+  .group{border-bottom:1px solid #c7c7c7;padding:8px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+  .form{display:grid;grid-template-columns:70px 1fr;gap:5px 7px;align-items:center}
+  .form label{font-size:12px;color:#333}
+  .form input,.form select{width:100%;height:27px;border:1px solid #aaa;border-radius:3px;background:white;padding:2px 5px}
+  .anchor-grid{width:84px;display:grid;grid-template-columns:repeat(3,24px);gap:3px;margin:2px 0 7px}
+  .anchor{width:24px;height:24px;padding:0;border:1px solid #999;background:#fafafa;border-radius:2px}
+  .anchor.active{background:#d7e7ff;border-color:#4c8ade}
+  .hint{font-size:11px;line-height:1.45;color:#666;margin-top:6px}
+  .status{display:flex;align-items:center;padding:0 7px;border-top:1px solid var(--line);font-size:11px}
+  #statusText{flex:1}
+  kbd{border:1px solid #aaa;border-bottom-width:2px;border-radius:3px;background:#fff;padding:0 3px;font-size:10px}
+  .hidden{display:none!important}
+  ruby rt{font-size:.5em}
+  @media print{
+    html,body,#app,.work,.canvas-wrap{height:auto;overflow:visible;background:white}
+    .menubar,.toolbar,.panel,.status{display:none!important}
+    .work{display:block}
+    .canvas-wrap{overflow:visible}
+    #canvasHost{margin:0!important;transform:none!important;width:auto!important;height:auto!important}
+    #page{box-shadow:none!important;margin:0!important}
+    .obj.selected{outline:none!important}
+    .handle,.measure-tag,.guide{display:none!important}
+  }
+
+  /* ===== v0.04 mobile layout ===== */
+  .mobile-top,.mobile-bottom,.orientation-hint,.sheet-close{display:none}
+  @media (max-width: 900px){
+    :root{--top-h:48px;--bottom-h:58px}
+    html,body{overscroll-behavior:none;touch-action:manipulation}
+    #app{display:block;height:100dvh;overflow:hidden}
+    .menubar,.toolbar,.status{display:none!important}
+
+    .mobile-top{
+      display:flex;position:fixed;left:0;right:0;top:0;height:var(--top-h);
+      z-index:20000;background:#ededed;border-bottom:1px solid #aaa;
+      align-items:center;gap:3px;padding:4px 6px;
+    }
+    .mobile-top button,.mobile-bottom button{
+      border:1px solid #aaa;background:#fafafa;border-radius:6px;
+      min-height:38px;padding:5px 8px;font-size:12px;white-space:nowrap;
+    }
+    .mobile-top .grow{flex:1}
+    .mobile-top .doc-label{
+      font-size:11px;line-height:1.15;text-align:center;color:#333;
+      min-width:54px;max-width:72px;
+    }
+
+    .mobile-bottom{
+      display:flex;position:fixed;left:0;right:0;bottom:0;height:var(--bottom-h);
+      z-index:20000;background:#ededed;border-top:1px solid #aaa;
+      align-items:center;gap:4px;padding:5px 6px;overflow-x:auto;overflow-y:hidden;
+      scrollbar-width:none;
+    }
+    .mobile-bottom::-webkit-scrollbar{display:none}
+    .mobile-bottom button{min-width:52px;height:44px;padding:3px 7px}
+    .mobile-bottom button.active{background:#d9e8ff;border-color:#5b8ed6}
+
+    .work{
+      display:block;position:fixed;left:0;right:0;
+      top:var(--top-h);bottom:var(--bottom-h);min-height:0;
+    }
+    .canvas-wrap{
+      position:absolute;inset:0;overflow:auto;background:#bdbdbd;
+      -webkit-overflow-scrolling:touch;
+    }
+    #canvasHost{margin:12px auto 26px}
+    #page{touch-action:none}
+
+    /* Existing side panels become bottom sheets. */
+    .panel{
+      display:block;position:fixed!important;left:0!important;right:0!important;
+      bottom:var(--bottom-h)!important;top:auto!important;width:auto!important;
+      max-height:min(52dvh,440px);z-index:21000;
+      border:1px solid #999!important;border-bottom:0!important;
+      border-radius:14px 14px 0 0;background:#f7f7f7;
+      box-shadow:0 -5px 20px rgba(0,0,0,.24);
+      transform:translateY(calc(100% + var(--bottom-h)));
+      transition:transform .16s ease;overflow:auto;
+    }
+    .panel.sheet-open{transform:translateY(0)}
+    .panel h3{font-size:13px;padding:9px 11px;position:relative}
+    .panel .group{padding:10px 12px}
+    .panel .form{grid-template-columns:92px 1fr}
+    .panel .form input,.panel .form select{height:34px;font-size:15px}
+    .mini{min-height:36px;font-size:13px}
+    .anchor-grid{width:108px;grid-template-columns:repeat(3,32px);gap:5px}
+    .anchor{width:32px;height:32px}
+
+    .sheet-close{
+      display:block;position:sticky;top:0;z-index:5;width:100%;
+      height:34px;border:0;border-bottom:1px solid #bbb;background:#e9e9e9;
+      font-size:13px;font-weight:600;
+    }
+
+    /* Bigger touch targets on the page. */
+    .handle{width:18px;height:18px;right:-9px;bottom:-9px;border:2px solid white;border-radius:3px}
+    .measure-tag{top:-22px;font-size:11px;padding:2px 5px}
+    .obj.selected{outline-width:1.5px}
+
+    .orientation-hint{
+      display:none;position:fixed;inset:var(--top-h) 0 var(--bottom-h) 0;
+      z-index:19000;background:rgba(25,25,25,.80);color:white;
+      align-items:center;justify-content:center;text-align:center;
+      padding:24px;font-size:18px;line-height:1.6;
+    }
+    .orientation-hint.show{display:flex}
+
+    /* Landscape gives the page more vertical room and a flatter toolbar. */
+    @media (orientation:landscape){
+      :root{--top-h:44px;--bottom-h:52px}
+      .mobile-top button{min-height:34px;padding:3px 8px}
+      .mobile-bottom button{height:38px;min-width:56px}
+      #canvasHost{margin:8px auto 18px}
+      .panel{max-height:min(62dvh,360px)}
+    }
+  }
+
+
+  .mobile-format{display:none}
+  .table-grid{
+    position:absolute;inset:0;display:grid;background:#fff;
+    overflow:hidden;
+  }
+  .table-cell{
+    min-width:0;min-height:0;overflow:hidden;
+    border-style:solid;border-color:#222;
+    white-space:pre-wrap;outline:none;
+  }
+  .table-cell[contenteditable="true"]{background:rgba(255,250,210,.35);user-select:text}
+  @media (max-width:900px){
+    :root{--format-h:44px;--top-total:calc(var(--top-h) + var(--format-h))}
+    .mobile-format{
+      display:flex;position:fixed;left:0;right:0;top:var(--top-h);
+      height:var(--format-h);z-index:20000;background:#f4f4f4;
+      border-bottom:1px solid #aaa;align-items:center;gap:5px;padding:4px 6px;
+      overflow-x:auto;overflow-y:hidden;scrollbar-width:none;
+    }
+    .mobile-format::-webkit-scrollbar{display:none}
+    .mobile-format select,.mobile-format input{
+      height:34px;border:1px solid #aaa;border-radius:5px;background:#fff;
+      font-size:13px;padding:2px 5px;
+    }
+    .mobile-format .m-font{min-width:132px;max-width:150px}
+    .mobile-format .m-size{width:58px}
+    .mobile-format .m-line{width:58px}
+    .mobile-format button{
+      height:34px;border:1px solid #aaa;border-radius:5px;background:#fafafa;
+      padding:3px 8px;white-space:nowrap;font-size:12px;
+    }
+    .work{top:var(--top-total)!important}
+    .orientation-hint{inset:var(--top-total) 0 var(--bottom-h) 0!important}
+    @media (orientation:landscape){
+      :root{--format-h:40px}
+      .mobile-format{height:var(--format-h)}
+      .mobile-format select,.mobile-format input,.mobile-format button{height:32px}
+    }
+  }
+
+
+  .mobile-transform{display:none}
+  @media (max-width:900px){
+    :root{
+      --transform-h:42px;
+      --top-h:46px;
+      --format-h:44px;
+      --top-total:calc(var(--transform-h) + var(--top-h) + var(--format-h));
+    }
+    .mobile-transform{
+      display:flex;position:fixed;left:0;right:0;top:0;height:var(--transform-h);
+      z-index:20100;background:#e7e7e7;border-bottom:1px solid #999;
+      align-items:center;gap:4px;padding:3px 5px;overflow-x:auto;overflow-y:hidden;
+      scrollbar-width:none;
+    }
+    .mobile-transform::-webkit-scrollbar{display:none}
+    .mobile-transform .m-anchor-grid{
+      display:grid;grid-template-columns:repeat(3,9px);grid-template-rows:repeat(3,9px);
+      gap:2px;padding:3px;border:1px solid #999;background:#f8f8f8;border-radius:4px;
+      flex:0 0 auto;
+    }
+    .mobile-transform .m-anchor{
+      width:9px;height:9px;padding:0;border:1px solid #777;background:white;border-radius:1px;
+      min-width:0;min-height:0;
+    }
+    .mobile-transform .m-anchor.active{background:#1f6feb;border-color:#1f6feb}
+    .mobile-transform .m-field{
+      display:grid;grid-template-columns:auto 50px;align-items:center;gap:2px;
+      font-size:10px;white-space:nowrap;flex:0 0 auto;
+    }
+    .mobile-transform .m-field input{
+      width:50px;height:30px;border:1px solid #999;border-radius:4px;background:white;
+      padding:1px 3px;font-size:12px;text-align:right;
+    }
+    .mobile-transform .unit{font-size:9px;color:#555;margin-left:-2px}
+    .mobile-top{top:var(--transform-h)!important}
+    .mobile-format{top:calc(var(--transform-h) + var(--top-h))!important}
+    .work{top:var(--top-total)!important}
+    .orientation-hint{inset:var(--top-total) 0 var(--bottom-h) 0!important}
+
+    @media (orientation:landscape){
+      :root{
+        --transform-h:38px;
+        --top-h:42px;
+        --format-h:38px;
+        --top-total:calc(var(--transform-h) + var(--top-h) + var(--format-h));
+      }
+      .mobile-transform{height:var(--transform-h);padding-top:2px;padding-bottom:2px}
+      .mobile-transform .m-field input{height:28px}
+    }
+  }
+
+
+  .mobile-menu-sheet{display:none}
+  @media (max-width:900px){
+    :root{
+      --transform-h:48px;
+      --top-h:0px;
+      --format-h:42px;
+      --top-total:calc(var(--transform-h) + var(--format-h));
+    }
+
+    .mobile-top{display:none!important}
+
+    .mobile-transform{
+      display:flex;position:fixed;left:0;right:0;top:0;height:var(--transform-h);
+      z-index:20100;background:#efefef;border-bottom:1px solid #a7a7a7;
+      align-items:center;gap:6px;padding:4px 6px;overflow-x:auto;overflow-y:hidden;
+      scrollbar-width:none;
+    }
+    .mobile-transform::-webkit-scrollbar{display:none}
+
+    .mobile-transform .m-btn{
+      width:34px;height:34px;flex:0 0 34px;
+      display:grid;place-items:center;
+      border:1px solid #9f9f9f;border-radius:4px;background:#f9f9f9;
+      color:#222;padding:0;
+    }
+    .mobile-transform .m-btn.active{
+      background:#d9e8ff;border-color:#5b8ed6;
+    }
+    .mobile-transform .m-menu-symbol{
+      font-size:20px;line-height:1;transform:translateY(-1px);
+    }
+    .mobile-transform .m-tool-arrow{
+      font-size:18px;line-height:1;
+    }
+    .mobile-transform .m-tool-text{
+      font-size:20px;font-weight:700;line-height:1;
+      font-family:Georgia, "Times New Roman", serif;
+    }
+
+    .mobile-transform .m-anchor-grid{
+      display:grid;grid-template-columns:repeat(3,8px);grid-template-rows:repeat(3,8px);
+      gap:2px;padding:4px 5px;border:1px solid #9f9f9f;background:#f9f9f9;border-radius:4px;
+      flex:0 0 auto;
+    }
+    .mobile-transform .m-anchor{
+      width:8px;height:8px;padding:0;border:1px solid #777;background:white;border-radius:1px;
+      min-width:0;min-height:0;
+    }
+    .mobile-transform .m-anchor.active{background:#1f6feb;border-color:#1f6feb}
+
+    .mobile-transform .m-field{
+      display:grid;grid-template-columns:auto 42px;align-items:center;gap:2px;
+      font-size:11px;color:#222;white-space:nowrap;flex:0 0 auto;
+    }
+    .mobile-transform .m-field .label{font-weight:600}
+    .mobile-transform .m-field input{
+      width:42px;height:30px;border:1px solid #8f8f8f;border-radius:3px;background:white;
+      padding:1px 3px;font-size:12px;text-align:center;
+    }
+
+    .mobile-format{
+      top:var(--transform-h)!important;
+      display:flex;position:fixed;left:0;right:0;height:var(--format-h);
+      z-index:20000;background:#f6f6f6;border-bottom:1px solid #b3b3b3;
+      align-items:center;gap:5px;padding:4px 6px;overflow-x:auto;overflow-y:hidden;
+    }
+    .mobile-format select,.mobile-format input,.mobile-format button{height:32px}
+
+    .work{top:var(--top-total)!important}
+    .orientation-hint{inset:var(--top-total) 0 var(--bottom-h) 0!important}
+
+    .mobile-menu-sheet{
+      display:block;position:fixed;left:8px;top:50px;min-width:228px;max-width:min(92vw,320px);
+      z-index:22000;background:#fafafa;border:1px solid #9a9a9a;border-radius:10px;
+      box-shadow:0 6px 22px rgba(0,0,0,.24);padding:8px;
+      transform-origin:top left;transform:scale(.96);opacity:0;pointer-events:none;
+      transition:transform .12s ease, opacity .12s ease;
+    }
+    .mobile-menu-sheet.open{transform:scale(1);opacity:1;pointer-events:auto}
+    .mobile-menu-head{
+      display:flex;align-items:center;justify-content:space-between;
+      font-size:13px;font-weight:700;margin-bottom:8px;padding:0 2px;
+    }
+    .mobile-menu-close{
+      width:28px;height:28px;border:1px solid #9f9f9f;border-radius:4px;background:#f4f4f4;
+    }
+    .mobile-menu-grid{
+      display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;
+    }
+    .mobile-menu-grid button{
+      min-height:36px;border:1px solid #a5a5a5;border-radius:6px;background:#fff;
+      font-size:13px;padding:5px 8px;
+    }
+    .mobile-menu-info{
+      grid-column:1 / -1;font-size:12px;color:#444;padding:2px 2px 0;
+    }
+
+    @media (orientation:landscape){
+      :root{
+        --transform-h:42px;
+        --format-h:38px;
+        --top-total:calc(var(--transform-h) + var(--format-h));
+      }
+      .mobile-transform{height:var(--transform-h);padding-top:3px;padding-bottom:3px}
+      .mobile-transform .m-btn{width:30px;height:30px;flex-basis:30px}
+      .mobile-transform .m-field input{height:28px}
+      .mobile-format{height:var(--format-h)}
+      .mobile-menu-sheet{top:44px}
+    }
+  }
+
+
+  /* ===== v0.10 top transform bar: compact, no horizontal scroll ===== */
+  @media (max-width:900px){
+    :root{
+      --transform-h:40px;
+      --top-total:calc(var(--transform-h) + var(--format-h));
+    }
+
+    .mobile-transform{
+      display:grid!important;
+      grid-template-columns:
+        27px 27px 27px 30px
+        minmax(43px,1fr) minmax(43px,1fr) minmax(43px,1fr) minmax(43px,1fr);
+      column-gap:2px;
+      align-items:center;
+      width:100%;
+      height:var(--transform-h);
+      padding:3px 4px;
+      overflow:hidden!important;
+      background:#e6e6e6;
+      border-bottom:1px solid #8f8f8f;
+      box-shadow:none;
+    }
+
+    .mobile-transform .m-btn{
+      width:27px!important;
+      height:30px!important;
+      min-width:0!important;
+      flex:none!important;
+      padding:0!important;
+      border:0;
+      border-radius:0;
+      background:transparent;
+      color:#111;
+      display:grid;
+      place-items:center;
+    }
+    .mobile-transform .m-btn:hover{background:#d7d7d7}
+    .mobile-transform .m-btn.active{
+      background:#d4d4d4;
+      border:0;
+      box-shadow:inset 0 0 0 1px #bcbcbc;
+    }
+
+    .mobile-transform .m-menu-lines{
+      width:17px;height:15px;
+      display:flex;flex-direction:column;justify-content:space-between;
+    }
+    .mobile-transform .m-menu-lines i{
+      display:block;height:1.5px;background:#222;width:17px;
+    }
+
+    .mobile-transform .m-cursor-icon{
+      width:18px;height:18px;fill:#111;
+    }
+    .mobile-transform .m-tool-text{
+      font-family:Arial,Helvetica,sans-serif;
+      font-size:20px;
+      font-weight:500;
+      line-height:1;
+      transform:translateY(-1px);
+    }
+
+    .mobile-transform .m-anchor-grid{
+      width:30px!important;
+      height:30px!important;
+      min-width:30px!important;
+      display:grid!important;
+      grid-template-columns:repeat(3,6px)!important;
+      grid-template-rows:repeat(3,6px)!important;
+      place-content:center;
+      gap:2px!important;
+      padding:0!important;
+      border:0!important;
+      border-radius:0!important;
+      background:transparent!important;
+    }
+    .mobile-transform .m-anchor{
+      width:6px!important;
+      height:6px!important;
+      min-width:0!important;
+      min-height:0!important;
+      border:1px solid #333!important;
+      border-radius:0!important;
+      background:#fff!important;
+      box-sizing:border-box;
+    }
+    .mobile-transform .m-anchor.active{
+      background:#111!important;
+      border-color:#111!important;
+    }
+
+    .mobile-transform .m-field{
+      min-width:0!important;
+      width:auto!important;
+      display:grid!important;
+      grid-template-columns:11px minmax(0,1fr)!important;
+      gap:1px!important;
+      align-items:center;
+      font-size:13px!important;
+      color:#111;
+    }
+    .mobile-transform .m-field .label{
+      font-size:13px;
+      font-weight:500!important;
+      line-height:1;
+      text-align:center;
+    }
+    .mobile-transform .m-field input{
+      width:100%!important;
+      min-width:0!important;
+      height:28px!important;
+      padding:1px 2px!important;
+      border:1px solid #222!important;
+      border-radius:0!important;
+      background:#fff!important;
+      box-shadow:none!important;
+      color:#111;
+      font-size:12px!important;
+      line-height:26px;
+      text-align:center!important;
+      -moz-appearance:textfield;
+    }
+    .mobile-transform .m-field input::-webkit-outer-spin-button,
+    .mobile-transform .m-field input::-webkit-inner-spin-button{
+      -webkit-appearance:none;
+      margin:0;
+    }
+
+    .mobile-format{top:var(--transform-h)!important}
+    .work{top:var(--top-total)!important}
+    .orientation-hint{inset:var(--top-total) 0 var(--bottom-h) 0!important}
+    .mobile-menu-sheet{top:42px!important}
+
+    @media (max-width:360px){
+      .mobile-transform{
+        grid-template-columns:
+          25px 25px 25px 28px
+          minmax(40px,1fr) minmax(40px,1fr) minmax(40px,1fr) minmax(40px,1fr);
+        column-gap:1px;
+        padding-left:2px;
+        padding-right:2px;
+      }
+      .mobile-transform .m-btn{width:25px!important}
+      .mobile-transform .m-anchor-grid{width:28px!important;min-width:28px!important}
+      .mobile-transform .m-field{
+        grid-template-columns:10px minmax(0,1fr)!important;
+      }
+      .mobile-transform .m-field .label{font-size:12px}
+      .mobile-transform .m-field input{font-size:11px!important;padding:1px!important}
+    }
+
+    @media (orientation:landscape){
+      :root{
+        --transform-h:38px;
+        --top-total:calc(var(--transform-h) + var(--format-h));
+      }
+      .mobile-transform{
+        height:var(--transform-h);
+        grid-template-columns:
+          27px 27px 27px 30px
+          minmax(48px,1fr) minmax(48px,1fr) minmax(48px,1fr) minmax(48px,1fr);
+      }
+      .mobile-menu-sheet{top:40px!important}
+    }
+  }
+
+
+  #page[data-tool="text"] .obj.text{cursor:text}
+
+
+  /* ===== v0.12 compact X/Y/W/H + preview toggle ===== */
+  @media (max-width:900px){
+    .mobile-transform{
+      grid-template-columns:
+        25px 25px 25px 27px
+        minmax(36px,1fr) minmax(36px,1fr) minmax(36px,1fr) minmax(36px,1fr)
+        27px!important;
+      column-gap:1px!important;
+      padding-left:2px!important;
+      padding-right:2px!important;
+    }
+    .mobile-transform .m-field{
+      grid-template-columns:9px minmax(0,1fr)!important;
+      gap:0!important;
+    }
+    .mobile-transform .m-field .label{
+      font-size:11px!important;
+    }
+    .mobile-transform .m-field input{
+      font-size:10.5px!important;
+      padding:1px!important;
+    }
+    .mobile-transform .m-preview-btn{
+      width:27px!important;
+      height:30px!important;
+    }
+    .mobile-transform .m-preview-icon{
+      width:18px;height:18px;
+      fill:none;stroke:#111;stroke-width:1.6;
+    }
+    .mobile-transform .m-preview-btn.preview-on{
+      background:#d4d4d4!important;
+      box-shadow:inset 0 0 0 1px #aaa!important;
+    }
+
+    @media (max-width:360px){
+      .mobile-transform{
+        grid-template-columns:
+          24px 24px 24px 26px
+          minmax(34px,1fr) minmax(34px,1fr) minmax(34px,1fr) minmax(34px,1fr)
+          26px!important;
+      }
+      .mobile-transform .m-field{
+        grid-template-columns:8px minmax(0,1fr)!important;
+      }
+      .mobile-transform .m-field .label{font-size:10px!important}
+      .mobile-transform .m-field input{font-size:10px!important}
+      .mobile-transform .m-preview-btn{width:26px!important}
+    }
+
+    @media (orientation:landscape){
+      .mobile-transform{
+        grid-template-columns:
+          25px 25px 25px 27px
+          minmax(42px,1fr) minmax(42px,1fr) minmax(42px,1fr) minmax(42px,1fr)
+          27px!important;
+      }
+    }
+  }
+
+  /* Preview mode: hide all non-printing editing aids. */
+  #page.preview-mode .guide,
+  #page.preview-mode .handle,
+  #page.preview-mode .measure-tag{
+    display:none!important;
+  }
+  #page.preview-mode .obj.selected{
+    outline:none!important;
+  }
+  #page.preview-mode .obj.text{
+    border-color:transparent!important;
+    outline:none!important;
+  }
+  #page.preview-mode .obj.image{
+    border-color:transparent!important;
+    outline:none!important;
+  }
+  #page.preview-mode .obj.image .image-content > div{
+    display:none!important;
+  }
+  #page.preview-mode .obj{
+    cursor:default!important;
+  }
+
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="mobile-transform" id="mobileTransform">
+    <button class="m-btn m-menu-btn" id="mMenuBtn" title="メニュー" aria-label="メニュー">
+      <span class="m-menu-lines"><i></i><i></i><i></i></span>
+    </button>
+    <button class="m-btn active" data-mobile-tool="select" title="選択ツール" aria-label="選択ツール">
+      <svg class="m-cursor-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 3.5 L18.5 12.2 L12.2 13.4 L15.7 20 L12.9 21.4 L9.5 14.8 L5 19 Z"/>
+      </svg>
+    </button>
+    <button class="m-btn" data-mobile-tool="text" title="文字ツール" aria-label="文字ツール">
+      <span class="m-tool-text">T</span>
+    </button>
+    <div class="m-anchor-grid" id="mAnchorGrid" title="基準点"></div>
+    <div class="m-field"><span class="label">X</span><input id="mXInput" type="number" step="0.1" inputmode="decimal"></div>
+    <div class="m-field"><span class="label">Y</span><input id="mYInput" type="number" step="0.1" inputmode="decimal"></div>
+    <div class="m-field"><span class="label">W</span><input id="mWInput" type="number" step="0.1" min="1" inputmode="decimal"></div>
+    <div class="m-field"><span class="label">H</span><input id="mHInput" type="number" step="0.1" min="1" inputmode="decimal"></div>
+    <button class="m-btn m-preview-btn" id="mPreviewBtn" title="プレビュー表示" aria-label="作業モードとプレビューモードを切り替え">
+      <svg class="m-preview-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M2.5 12s3.4-5.5 9.5-5.5S21.5 12 21.5 12 18.1 17.5 12 17.5 2.5 12 2.5 12Z"/>
+        <circle cx="12" cy="12" r="2.7"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="mobile-menu-sheet" id="mobileMenuSheet">
+    <div class="mobile-menu-head">
+      <span>メニュー</span>
+      <button class="mobile-menu-close" id="mMenuCloseBtn">×</button>
+    </div>
+    <div class="mobile-menu-grid">
+      <button id="mMenuNewBtn">新規</button>
+      <button id="mMenuOpenBtn">開く</button>
+      <button id="mMenuSaveBtn">保存</button>
+      <button id="mMenuPrintBtn">PDF</button>
+      <button id="mMenuFitBtn">全体表示</button>
+      <button id="mMenuPagesBtn">ページ</button>
+      <div class="mobile-menu-info" id="mobileDocLabelMenu">B5 / 縦</div>
+    </div>
+  </div>
+
+  <div class="mobile-top" id="mobileTop">
+    <button id="mNewBtn">新規</button>
+    <button id="mOpenBtn">開く</button>
+    <button id="mSaveBtn">保存</button>
+    <button id="mPrintBtn">PDF</button>
+    <span class="grow"></span>
+    <div class="doc-label" id="mobileDocLabel">B5<br>縦</div>
+    <button id="mFitBtn">全体</button>
+  </div>
+
+  <div class="mobile-format" id="mobileFormat">
+    <select id="mFontSelect" class="m-font" title="フォント">
+      <option value='"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif'>ゴシック（標準）</option>
+      <option value='"BIZ UDPGothic","UD Digi Kyokasho N-R","Yu Gothic","Noto Sans CJK JP",sans-serif'>UDゴシック</option>
+      <option value='"Meiryo","Hiragino Kaku Gothic ProN","Noto Sans CJK JP",sans-serif'>メイリオ系</option>
+      <option value='"Yu Mincho","Hiragino Mincho ProN","Noto Serif CJK JP","Noto Serif JP",serif'>明朝（標準）</option>
+      <option value='"BIZ UDPMincho","Yu Mincho","Noto Serif CJK JP",serif'>UD明朝</option>
+      <option value='"MS Gothic","Osaka-Mono","Noto Sans Mono CJK JP",monospace'>等幅ゴシック</option>
+      <option value='sans-serif'>Sans serif</option>
+      <option value='serif'>Serif</option>
+      <option value='monospace'>Monospace</option>
+    </select>
+    <input id="mFontSizeInput" class="m-size" type="number" step="0.5" value="12" title="文字サイズ(pt)">
+    <span style="font-size:11px">pt</span>
+    <input id="mLineHeightInput" class="m-line" type="number" step="0.1" value="1.5" title="行送り倍率">
+    <button id="mRubyBtn" title="選択文字にルビ">ルビ</button>
+  </div>
+
+  <div class="orientation-hint" id="orientationHint">
+    <div id="orientationHintText">端末を回転してください</div>
+  </div>
+
+  <div class="menubar">
+    <button id="newBtn">新規</button>
+    <button id="openBtn">開く</button>
+    <button id="saveBtn">保存</button>
+    <button id="printBtn">PDF/印刷</button>
+    <button id="dupPageBtn">ページ複製</button>
+    <button id="addPageBtn">ページ追加</button>
+  </div>
+
+  <div class="toolbar">
+    <button class="toolbtn active" data-tool="select">選択</button>
+    <button class="toolbtn" data-tool="text">文字枠</button>
+    <button class="toolbtn" data-tool="image">画像枠</button>
+    <button class="toolbtn" data-tool="rect">四角形</button>
+    <button class="toolbtn" data-tool="table">表</button>
+    <span style="width:1px;height:26px;background:#aaa;margin:0 2px"></span>
+    <label>用紙</label>
+    <select id="paperSelect">
+      <option value="B5">B5 182×257mm</option>
+      <option value="A4">A4 210×297mm</option>
+    </select>
+    <select id="orientationSelect">
+      <option value="portrait">縦</option>
+      <option value="landscape">横</option>
+    </select>
+    <label>表示</label>
+    <select id="zoomSelect">
+      <option>50</option><option>75</option><option selected>100</option>
+      <option>125</option><option>150</option><option>200</option>
+    </select><span>%</span>
+    <div class="spacer"></div>
+    <label><input type="checkbox" id="snapCheck" checked> スナップ</label>
+  </div>
+
+  <div class="work">
+    <aside class="panel" id="pagesPanel"><button class="sheet-close" data-close-sheet>閉じる</button>
+      <h3>ページ</h3>
+      <div class="pages" id="pages"></div>
+      <div class="group">
+        <div class="grid2">
+          <button class="mini" id="addGuideV">縦ガイド</button>
+          <button class="mini" id="addGuideH">横ガイド</button>
+        </div>
+        <div class="hint">ガイド位置は mm 指定です。</div>
+      </div>
+    </aside>
+
+    <main class="canvas-wrap" id="canvasWrap">
+      <div id="canvasHost"><div id="page"></div></div>
+    </main>
+
+    <aside class="panel right" id="inspectorPanel"><button class="sheet-close" data-close-sheet>閉じる</button>
+      <h3 id="sec-transform">変形</h3>
+      <div class="group">
+        <div class="anchor-grid" id="anchorGrid"></div>
+        <div class="form">
+          <label>X (mm)</label><input id="xInput" type="number" step="0.1">
+          <label>Y (mm)</label><input id="yInput" type="number" step="0.1">
+          <label>W (mm)</label><input id="wInput" type="number" step="0.1" min="1">
+          <label>H (mm)</label><input id="hInput" type="number" step="0.1" min="1">
+        </div>
+      </div>
+
+      <h3 id="sec-align">整列・分布</h3>
+      <div class="group">
+        <div class="grid3">
+          <button class="mini" data-align="left">左</button>
+          <button class="mini" data-align="hcenter">左右中央</button>
+          <button class="mini" data-align="right">右</button>
+          <button class="mini" data-align="top">上</button>
+          <button class="mini" data-align="vcenter">上下中央</button>
+          <button class="mini" data-align="bottom">下</button>
+        </div>
+        <div class="grid2" style="margin-top:6px">
+          <button class="mini" data-distribute="h">横均等</button>
+          <button class="mini" data-distribute="v">縦均等</button>
+        </div>
+        <div class="form" style="margin-top:6px">
+          <label>間隔 (mm)</label><input id="gapInput" type="number" step="0.1" value="5">
+        </div>
+        <div class="grid2" style="margin-top:5px">
+          <button class="mini" data-gap="h">横に配置</button>
+          <button class="mini" data-gap="v">縦に配置</button>
+        </div>
+      </div>
+
+      <h3 id="sec-type">文字・ルビ</h3>
+      <div class="group">
+        <div class="form">
+          <label>フォント</label>
+          <select id="fontSelect">
+            <option value='"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif'>ゴシック（標準）</option>
+            <option value='"BIZ UDPGothic","UD Digi Kyokasho N-R","Yu Gothic","Noto Sans CJK JP",sans-serif'>UDゴシック</option>
+            <option value='"Meiryo","Hiragino Kaku Gothic ProN","Noto Sans CJK JP",sans-serif'>メイリオ系</option>
+            <option value='"Yu Mincho","Hiragino Mincho ProN","Noto Serif CJK JP","Noto Serif JP",serif'>明朝（標準）</option>
+            <option value='"BIZ UDPMincho","Yu Mincho","Noto Serif CJK JP",serif'>UD明朝</option>
+            <option value='"MS Gothic","Osaka-Mono","Noto Sans Mono CJK JP",monospace'>等幅ゴシック</option>
+            <option value='sans-serif'>Sans serif</option>
+            <option value='serif'>Serif</option>
+            <option value='monospace'>Monospace</option>
+          </select>
+          <label>サイズ</label><input id="fontSizeInput" type="number" step="0.5" value="12">
+          <label>行送り</label><input id="lineHeightInput" type="number" step="0.1" value="1.5">
+          <label>ルビ比率</label><input id="rubyRatioInput" type="number" step="0.05" value="0.5">
+        </div>
+        <button class="mini" id="rubyBtn" style="width:100%;margin-top:7px">選択文字にルビ</button>
+        <div class="hint">文字枠を選択して書体を変えると、枠内の全文字がその場で見た目も切り替わります。<br>文字枠をダブルクリック → 文字を選択 →「選択文字にルビ」。</div>
+      </div>
+
+      <h3 id="sec-columns">段組</h3>
+      <div class="group">
+        <div class="form">
+          <label>段数</label><input id="columnCountInput" type="number" min="1" max="12" step="1" value="1">
+          <label>段間 (mm)</label><input id="columnGapInput" type="number" min="0" step="0.1" value="5">
+          <label>段幅 (mm)</label><input id="columnWidthOutput" type="text" readonly>
+        </div>
+        <div class="hint">文字枠の幅は変えず、段数と段間から各段の幅を計算します。</div>
+      </div>
+
+      <h3 id="sec-frame">文字枠</h3>
+      <div class="group">
+        <div class="form">
+          <label>上余白</label><input id="insetTopInput" type="number" step="0.1" value="0">
+          <label>右余白</label><input id="insetRightInput" type="number" step="0.1" value="0">
+          <label>下余白</label><input id="insetBottomInput" type="number" step="0.1" value="0">
+          <label>左余白</label><input id="insetLeftInput" type="number" step="0.1" value="0">
+        </div>
+        <label style="display:block;font-size:12px;margin-top:6px">
+          <input type="checkbox" id="linkInsetCheck" checked> 4辺を連動
+        </label>
+        <div class="hint">初期値は0mm。ルビは文字枠の外へ張り出せます。</div>
+      </div>
+
+
+      <h3 id="sec-table">表</h3>
+      <div class="group">
+        <div class="form">
+          <label>行数</label><input id="tableRowsInput" type="number" min="1" max="50" step="1" value="3">
+          <label>列数</label><input id="tableColsInput" type="number" min="1" max="20" step="1" value="3">
+          <label>セル余白</label><input id="tablePaddingInput" type="number" min="0" step="0.1" value="1">
+          <label>罫線 (mm)</label><input id="tableBorderInput" type="number" min="0" step="0.05" value="0.2">
+        </div>
+        <button class="mini" id="applyTableBtn" style="width:100%;margin-top:7px">表設定を反映</button>
+        <div class="hint">セルをダブルタップ／ダブルクリックすると文字を編集できます。</div>
+      </div>
+
+      <h3>操作</h3>
+      <div class="group hint">
+        <div><kbd>←↑→↓</kbd> 1mm</div>
+        <div><kbd>Shift</kbd> + 矢印 0.1mm</div>
+        <div><kbd>Ctrl</kbd> + 矢印 10mm</div>
+        <div><kbd>Shift</kbd> + クリック 複数選択</div>
+        <div><kbd>Delete</kbd> 選択削除</div>
+        <div>枠右下の青い点でサイズ変更</div>
+      </div>
+    </aside>
+  </div>
+
+
+  <div class="mobile-bottom" id="mobileBottom">
+    <button data-mobile-tool="select" class="active">選択</button>
+    <button data-mobile-tool="text">文字枠</button>
+    <button data-mobile-tool="image">画像</button>
+    <button data-mobile-tool="rect">四角</button>
+    <button data-mobile-tool="table">表</button>
+    <button data-sheet="transform">変形</button>
+    <button data-sheet="type">文字</button>
+    <button data-sheet="columns">段組</button>
+    <button data-sheet="align">整列</button>
+    <button data-sheet="table">表設定</button>
+    <button data-sheet="pages">ページ</button>
+  </div>
+
+  <div class="status"><span id="statusText">準備完了</span><span id="selInfo"></span></div>
+</div>
+
+<input id="openFile" type="file" accept=".stjson,.json" class="hidden">
+<input id="imageFile" type="file" accept="image/*" class="hidden">
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+  const MM_TO_PX = 96/25.4;
+
+  const state = {
+    doc:{
+      app:"Simple Typesetter Mobile",
+      version:"0.12",
+      pageSize:[182,257],
+      pages:[{items:[],guidesV:[10,172],guidesH:[10,247]}]
+    },
+    pageIndex:0,
+    tool:"select",
+    selected:new Set(),
+    anchor:[0,0],
+    zoom:1,
+    snap:true,
+    drawing:null,
+    drag:null,
+    resize:null,
+    editItem:null,
+    previewMode:false
+  };
+
+
+  const isMobileUI = () => window.matchMedia("(max-width: 900px)").matches;
+
+  function closeSheets(){
+    $("#pagesPanel")?.classList.remove("sheet-open");
+    $("#inspectorPanel")?.classList.remove("sheet-open");
+    $("#mobileMenuSheet")?.classList.remove("open");
+  }
+
+  function openSheet(which){
+    if(!isMobileUI()) return;
+    closeSheets();
+    if(which==="pages"){
+      $("#pagesPanel")?.classList.add("sheet-open");
+      return;
+    }
+    const panel=$("#inspectorPanel");
+    panel?.classList.add("sheet-open");
+    const target=$("#sec-"+which);
+    if(target) setTimeout(()=>target.scrollIntoView({block:"start",behavior:"smooth"}),30);
+  }
+
+
+  function toggleMobileMenu(){
+    if(!isMobileUI()) return;
+    const menu=$("#mobileMenuSheet");
+    if(!menu) return;
+    const opening=!menu.classList.contains("open");
+    closeSheets();
+    if(opening) menu.classList.add("open");
+  }
+
+
+  function setPreviewMode(on){
+    state.previewMode=!!on;
+    pageEl.classList.toggle("preview-mode", state.previewMode);
+
+    const btn=$("#mPreviewBtn");
+    if(btn){
+      btn.classList.toggle("preview-on", state.previewMode);
+      btn.title=state.previewMode ? "作業モードに戻る" : "プレビュー表示";
+      btn.setAttribute("aria-label", state.previewMode ? "作業モードに戻る" : "プレビューモードに切り替え");
+    }
+
+    if(state.previewMode){
+      // Finish active text editing and remove selection indicators.
+      const active=pageEl.querySelector('.text-content[contenteditable="true"]');
+      if(active) active.blur();
+      state.selected.clear();
+      applySelectionClasses();
+      closeSheets();
+      setStatus("プレビューモード");
+    }else{
+      setStatus("作業モード");
+    }
+  }
+
+  function togglePreviewMode(){
+    setPreviewMode(!state.previewMode);
+  }
+
+  function updateMobileToolActive(tool){
+    document.querySelectorAll("[data-mobile-tool]").forEach(b=>{
+      b.classList.toggle("active", b.dataset.mobileTool===tool);
+    });
+  }
+
+  function updateMobileDocLabel(){
+    const lab=$("#mobileDocLabel");
+    const lab2=$("#mobileDocLabelMenu");
+    const [w,h]=state.doc.pageSize;
+    let paper=(Math.min(w,h)>190)?"A4":"B5";
+    if(lab) lab.innerHTML=`${paper}<br>${h>=w?"縦":"横"}`;
+    if(lab2) lab2.textContent=`${paper} / ${h>=w?"縦":"横"}`;
+  }
+
+  function updateOrientationHint(){
+    const hint=$("#orientationHint"), tx=$("#orientationHintText");
+    if(!hint || !isMobileUI()) { hint?.classList.remove("show"); return; }
+    const [w,h]=state.doc.pageSize;
+    const docLandscape=w>h;
+    const deviceLandscape=window.innerWidth>window.innerHeight;
+    const mismatch=docLandscape!==deviceLandscape;
+    if(mismatch){
+      tx.textContent=docLandscape
+        ? "横向きの紙面です。端末を横向きにしてください。"
+        : "縦向きの紙面です。端末を縦向きにしてください。";
+      hint.classList.add("show");
+    }else{
+      hint.classList.remove("show");
+    }
+  }
+
+  function fitMobilePage(){
+    if(!isMobileUI()) return;
+    const [w,h]=state.doc.pageSize;
+    const transformH=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--transform-h"))||42;
+    const topH=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--top-h"))||46;
+    const formatH=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--format-h"))||44;
+    const bottomH=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--bottom-h"))||58;
+    const availW=Math.max(120,window.innerWidth-20);
+    const availH=Math.max(160,window.innerHeight-transformH-topH-formatH-bottomH-24);
+    const naturalW=w*MM_TO_PX, naturalH=h*MM_TO_PX;
+    const z=Math.min(availW/naturalW,availH/naturalH);
+    state.zoom=Math.max(.18,Math.min(1.35,z));
+    const zs=$("#zoomSelect");
+    if(zs) zs.value=String(Math.round(state.zoom*100));
+    setPageSize(...state.doc.pageSize);
+  }
+
+
+  const pageEl = $("#page");
+  const hostEl = $("#canvasHost");
+  const pagesEl = $("#pages");
+  const statusEl = $("#statusText");
+  const selInfo = $("#selInfo");
+
+  function uid(){ return "i_"+Math.random().toString(36).slice(2)+Date.now().toString(36); }
+  function mm(v){ return `${Number(v)}mm`; }
+  function round(v,n=2){ return Math.round(v*10**n)/10**n; }
+  function currentPage(){ return state.doc.pages[state.pageIndex]; }
+  function getItem(id){ return currentPage().items.find(x=>x.id===id); }
+
+  function pageWH(){
+    const [w,h]=state.doc.pageSize;
+    return {w,h};
+  }
+
+  function setStatus(t){ statusEl.textContent=t; }
+
+
+  function rebuildMobileAnchors(){
+    const grid=$("#mAnchorGrid"); if(!grid) return;
+    grid.innerHTML="";
+    [[0,0],[.5,0],[1,0],[0,.5],[.5,.5],[1,.5],[0,1],[.5,1],[1,1]].forEach(([ax,ay])=>{
+      const b=document.createElement("button");
+      b.className="m-anchor"+(state.anchor[0]===ax && state.anchor[1]===ay?" active":"");
+      b.title=`基準点 ${ax},${ay}`;
+      b.onclick=()=>{
+        state.anchor=[ax,ay];
+        rebuildAnchors();
+        rebuildMobileAnchors();
+        refreshTransform();
+      };
+      grid.appendChild(b);
+    });
+  }
+
+  function rebuildAnchors(){
+    const grid=$("#anchorGrid"); grid.innerHTML="";
+    [[0,0],[.5,0],[1,0],[0,.5],[.5,.5],[1,.5],[0,1],[.5,1],[1,1]].forEach(([ax,ay])=>{
+      const b=document.createElement("button");
+      b.className="anchor"+(state.anchor[0]===ax && state.anchor[1]===ay?" active":"");
+      b.textContent="●";
+      b.title=`基準点 ${ax},${ay}`;
+      b.onclick=()=>{state.anchor=[ax,ay];rebuildAnchors();rebuildMobileAnchors();refreshTransform();};
+      grid.appendChild(b);
+    });
+  }
+
+  function setPageSize(w,h){
+    state.doc.pageSize=[w,h];
+    pageEl.style.width=mm(w);
+    pageEl.style.height=mm(h);
+    hostEl.style.width=`${w*MM_TO_PX*state.zoom}px`;
+    hostEl.style.height=`${h*MM_TO_PX*state.zoom}px`;
+    pageEl.style.transformOrigin="top left";
+    pageEl.style.transform=`scale(${state.zoom})`;
+    injectPrintPageSize(w,h);
+  }
+
+  function injectPrintPageSize(w,h){
+    let s=$("#printPageStyle");
+    if(!s){s=document.createElement("style");s.id="printPageStyle";document.head.appendChild(s);}
+    s.textContent=`@page { size: ${w}mm ${h}mm; margin: 0; }`;
+  }
+
+  function renderPages(){
+    pagesEl.innerHTML="";
+    state.doc.pages.forEach((p,i)=>{
+      const row=document.createElement("div");
+      row.className="page-row"+(i===state.pageIndex?" active":"");
+      row.innerHTML=`<div class="page-thumb"></div><div class="page-name">${i+1} ページ</div>`;
+      row.onclick=()=>{ saveDOMToPage(); state.pageIndex=i; render(); };
+      pagesEl.appendChild(row);
+    });
+  }
+
+  function renderGuides(){
+    pageEl.querySelectorAll(".guide").forEach(x=>x.remove());
+    currentPage().guidesV.forEach(x=>{
+      const g=document.createElement("div"); g.className="guide v"; g.style.left=mm(x); pageEl.appendChild(g);
+    });
+    currentPage().guidesH.forEach(y=>{
+      const g=document.createElement("div"); g.className="guide h"; g.style.top=mm(y); pageEl.appendChild(g);
+    });
+  }
+
+  function objHtml(it){
+    const el=document.createElement("div");
+    el.className=`obj ${it.type}`;
+    el.dataset.id=it.id;
+    el.style.left=mm(it.x); el.style.top=mm(it.y); el.style.width=mm(it.w); el.style.height=mm(it.h);
+    el.style.zIndex=String(it.z||10);
+
+    const content=document.createElement("div");
+    content.className="content "+(it.type==="text"?"text-content":it.type==="image"?"image-content":"");
+    if(it.type==="text"){
+      content.innerHTML=it.html || "";
+      content.style.fontFamily=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
+      content.style.fontSize=`${it.fontSize||12}pt`;
+      content.style.lineHeight=String(it.lineHeight||1.5);
+      content.style.paddingTop=mm(it.insetTop ?? 0);
+      content.style.paddingRight=mm(it.insetRight ?? 0);
+      content.style.paddingBottom=mm(it.insetBottom ?? 0);
+      content.style.paddingLeft=mm(it.insetLeft ?? 0);
+      content.style.columnCount=String(Math.max(1, it.columnCount ?? 1));
+      content.style.columnGap=mm(it.columnGap ?? 5);
+      content.style.columnFill="auto";
+    }else if(it.type==="image"){
+      if(it.src) content.innerHTML=`<img draggable="false" src="${it.src}">`;
+      else content.innerHTML=`<div style="height:100%;display:grid;place-items:center;color:#999;font-size:12px">画像</div>`;
+    }else if(it.type==="table"){
+      content.className="content";
+      normalizeTableCells(it);
+      const grid=document.createElement("div");
+      grid.className="table-grid";
+      grid.style.gridTemplateColumns=`repeat(${it.cols||3},1fr)`;
+      grid.style.gridTemplateRows=`repeat(${it.rows||3},1fr)`;
+      applyTextMetricsToTable(it,grid);
+      const bw=it.borderWidth??0.2;
+      const pad=it.cellPadding??1;
+      it.cells.forEach((html,idx)=>{
+        const cell=document.createElement("div");
+        cell.className="table-cell";
+        cell.dataset.cellIndex=idx;
+        cell.innerHTML=html||"";
+        cell.style.padding=mm(pad);
+        cell.style.borderWidth=mm(bw/2);
+        grid.appendChild(cell);
+      });
+      content.appendChild(grid);
+    }
+    el.appendChild(content);
+    const tag=document.createElement("div"); tag.className="measure-tag"; el.appendChild(tag);
+    const handle=document.createElement("div"); handle.className="handle"; el.appendChild(handle);
+    return el;
+  }
+
+
+  function normalizeTableCells(it){
+    const total=Math.max(1,(it.rows||3)*(it.cols||3));
+    if(!Array.isArray(it.cells)) it.cells=[];
+    while(it.cells.length<total) it.cells.push("");
+    if(it.cells.length>total) it.cells=it.cells.slice(0,total);
+  }
+
+  function applyTextMetricsToTable(it, grid){
+    grid.style.fontFamily=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
+    grid.style.fontSize=`${it.fontSize||12}pt`;
+    grid.style.lineHeight=String(it.lineHeight||1.5);
+  }
+
+  function renderItems(){
+    pageEl.querySelectorAll(".obj").forEach(x=>x.remove());
+    currentPage().items.forEach(it=>{
+      const el=objHtml(it);
+      pageEl.appendChild(el);
+      bindObj(el,it);
+      if(it.type==="text") renderRubyOverlays(it,el);
+    });
+    applySelectionClasses();
+  }
+
+  function renderRubyOverlays(it, el){
+    if(!el || it.type!=="text") return;
+    el.querySelectorAll(":scope > .ruby-overlay").forEach(x=>x.remove());
+    const content=el.querySelector(".text-content");
+    if(!content) return;
+    const objRect=el.getBoundingClientRect();
+    const zoom=state.zoom || 1;
+    content.querySelectorAll(".ruby-base[data-ruby]").forEach(base=>{
+      const reading=base.dataset.ruby || "";
+      if(!reading) return;
+      const r=base.getBoundingClientRect();
+      const ov=document.createElement("span");
+      ov.className="ruby-overlay";
+      ov.textContent=reading;
+      ov.style.left=`${((r.left+r.right)/2-objRect.left)/zoom}px`;
+      ov.style.top=`${(r.top-objRect.top)/zoom}px`;
+      ov.style.fontFamily=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
+      ov.style.fontSize=`${(it.fontSize||12)*(it.rubyRatio??.5)}pt`;
+      el.appendChild(ov);
+    });
+  }
+
+
+  function enterTextEditMode(el,it,clientX=null,clientY=null){
+    if(!el || !it || it.type!=="text") return;
+    const content=el.querySelector(".text-content");
+    if(!content) return;
+
+    // End editing in another text frame first.
+    if(state.editItem && state.editItem!==it.id){
+      const prev=pageEl.querySelector(`.obj[data-id="${state.editItem}"] .text-content`);
+      if(prev && prev.isContentEditable) prev.blur();
+    }
+
+    state.selected.clear();
+    state.selected.add(it.id);
+    applySelectionClasses();
+
+    state.editItem=it.id;
+    content.contentEditable="true";
+    content.focus({preventScroll:true});
+
+    // Put the caret near the touched/clicked position when the browser supports it.
+    requestAnimationFrame(()=>{
+      try{
+        let range=null;
+        if(clientX!==null && clientY!==null && document.caretPositionFromPoint){
+          const pos=document.caretPositionFromPoint(clientX,clientY);
+          if(pos){
+            range=document.createRange();
+            range.setStart(pos.offsetNode,pos.offset);
+            range.collapse(true);
+          }
+        }else if(clientX!==null && clientY!==null && document.caretRangeFromPoint){
+          range=document.caretRangeFromPoint(clientX,clientY);
+        }
+        if(range && content.contains(range.startContainer)){
+          const sel=window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }else if(!window.getSelection()?.rangeCount){
+          const r=document.createRange();
+          r.selectNodeContents(content);
+          r.collapse(false);
+          const sel=window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(r);
+        }
+      }catch(_){}
+    });
+
+    setStatus("文字入力モード");
+  }
+
+  function bindObj(el,it){
+    const content=el.querySelector(".content");
+    el.addEventListener("pointerdown",ev=>{
+      if(state.previewMode){
+        ev.stopPropagation();
+        ev.preventDefault();
+        return;
+      }
+
+      // Tツールで既存の文字枠に触れたら、新規枠ではなく文字入力を優先する。
+      if(state.tool==="text" && it.type==="text"){
+        if(ev.target.classList.contains("handle")) return;
+        ev.stopPropagation();
+        ev.preventDefault();
+        enterTextEditMode(el,it,ev.clientX,ev.clientY);
+        return;
+      }
+
+      if(state.tool!=="select") return;
+      if(it.type==="text" && content.isContentEditable) return;
+      if(ev.target.classList.contains("handle")) return;
+      ev.preventDefault();
+      if(!ev.shiftKey) state.selected.clear();
+      if(state.selected.has(it.id) && ev.shiftKey) state.selected.delete(it.id);
+      else state.selected.add(it.id);
+      applySelectionClasses();
+      const p=screenToPageMM(ev.clientX,ev.clientY);
+      state.drag={
+        start:p,
+        originals:[...state.selected].map(id=>{
+          const o=getItem(id); return {id,x:o.x,y:o.y};
+        })
+      };
+      el.setPointerCapture(ev.pointerId);
+    });
+
+    el.addEventListener("pointermove",ev=>{
+      if(!state.drag) return;
+      if(!state.selected.has(it.id)) return;
+      const p=screenToPageMM(ev.clientX,ev.clientY);
+      let dx=p.x-state.drag.start.x, dy=p.y-state.drag.start.y;
+      state.drag.originals.forEach(o=>{
+        const x=getItem(o.id);
+        x.x=o.x+dx; x.y=o.y+dy;
+      });
+      if(state.selected.size===1 && state.snap){
+        const only=getItem([...state.selected][0]);
+        const s=snapItem(only);
+        only.x=s.x; only.y=s.y;
+      }
+      syncSelectedToDOM(); refreshTransform(); refreshSelInfo();
+    });
+
+    el.addEventListener("pointerup",()=>{ state.drag=null; });
+
+    const handle=el.querySelector(".handle");
+    handle.addEventListener("pointerdown",ev=>{
+      ev.stopPropagation(); ev.preventDefault();
+      if(!state.selected.has(it.id)){state.selected.clear();state.selected.add(it.id);applySelectionClasses();}
+      const p=screenToPageMM(ev.clientX,ev.clientY);
+      state.resize={id:it.id,start:p,w:it.w,h:it.h};
+      handle.setPointerCapture(ev.pointerId);
+    });
+    handle.addEventListener("pointermove",ev=>{
+      if(!state.resize || state.resize.id!==it.id) return;
+      const p=screenToPageMM(ev.clientX,ev.clientY);
+      it.w=Math.max(2,state.resize.w+(p.x-state.resize.start.x));
+      it.h=Math.max(2,state.resize.h+(p.y-state.resize.start.y));
+      syncSelectedToDOM(); refreshTransform(); refreshSelInfo();
+      if(it.type==="text") refreshColumnWidth(it);
+    });
+    handle.addEventListener("pointerup",()=>state.resize=null);
+
+    if(it.type==="text"){
+      el.addEventListener("dblclick",ev=>{
+        ev.stopPropagation();
+        enterTextEditMode(el,it,ev.clientX,ev.clientY);
+      });
+      content.addEventListener("input",()=>{
+        it.html=content.innerHTML;
+        requestAnimationFrame(()=>renderRubyOverlays(it,el));
+      });
+      content.addEventListener("blur",()=>{
+        it.html=content.innerHTML;
+        content.contentEditable="false";
+        renderRubyOverlays(it,el);
+        state.editItem=null;
+        setStatus("文字入力を終了");
+      });
+    }
+
+    if(it.type==="table"){
+      const cells=[...el.querySelectorAll(".table-cell")];
+      cells.forEach(cell=>{
+        cell.addEventListener("dblclick",ev=>{
+          ev.stopPropagation();
+          const idx=+cell.dataset.cellIndex;
+          cell.contentEditable="true";
+          cell.focus();
+          setStatus(`表セル ${idx+1} を編集中`);
+        });
+        cell.addEventListener("input",()=>{
+          const idx=+cell.dataset.cellIndex;
+          it.cells[idx]=cell.innerHTML;
+        });
+        cell.addEventListener("blur",()=>{
+          const idx=+cell.dataset.cellIndex;
+          it.cells[idx]=cell.innerHTML;
+          cell.contentEditable="false";
+          setStatus("表セル編集を終了");
+        });
+      });
+    }
+
+    if(it.type==="image"){
+      el.addEventListener("dblclick",()=>{
+        $("#imageFile").dataset.target=it.id;
+        $("#imageFile").click();
+      });
+    }
+  }
+
+  function applySelectionClasses(){
+    $$(".obj").forEach(el=>{
+      const on=state.selected.has(el.dataset.id);
+      el.classList.toggle("selected",on);
+      const it=getItem(el.dataset.id);
+      const tag=el.querySelector(".measure-tag");
+      if(it && tag) tag.textContent=`${round(it.w)} × ${round(it.h)} mm`;
+    });
+    refreshTransform(); refreshTextPanel(); refreshSelInfo();
+  }
+
+  function refreshSelInfo(){
+    const n=state.selected.size;
+    if(n===0) selInfo.textContent="";
+    else if(n===1){
+      const it=getItem([...state.selected][0]);
+      selInfo.textContent=`X ${round(it.x)} / Y ${round(it.y)} / W ${round(it.w)} / H ${round(it.h)} mm`;
+    }else selInfo.textContent=`${n}個選択`;
+  }
+
+  function syncSelectedToDOM(){
+    state.selected.forEach(id=>{
+      const it=getItem(id), el=pageEl.querySelector(`.obj[data-id="${id}"]`);
+      if(!it||!el)return;
+      el.style.left=mm(it.x);el.style.top=mm(it.y);el.style.width=mm(it.w);el.style.height=mm(it.h);
+      const tag=el.querySelector(".measure-tag"); if(tag)tag.textContent=`${round(it.w)} × ${round(it.h)} mm`;
+      if(it.type==="text") requestAnimationFrame(()=>renderRubyOverlays(it,el));
+    });
+  }
+
+  function screenToPageMM(cx,cy){
+    const r=pageEl.getBoundingClientRect();
+    const {w,h}=pageWH();
+    return {x:(cx-r.left)*w/r.width,y:(cy-r.top)*h/r.height};
+  }
+
+  function snapItem(it){
+    const {w:pw,h:ph}=pageWH();
+    const xs=[0,pw/2,pw,...currentPage().guidesV];
+    const ys=[0,ph/2,ph,...currentPage().guidesH];
+    const threshold=1.5;
+    let x=it.x,y=it.y;
+    const probesX=[[it.x,0],[it.x+it.w/2,it.w/2],[it.x+it.w,it.w]];
+    const probesY=[[it.y,0],[it.y+it.h/2,it.h/2],[it.y+it.h,it.h]];
+    outer: for(const [p,off] of probesX)for(const c of xs)if(Math.abs(p-c)<=threshold){x=c-off;break outer;}
+    outer2: for(const [p,off] of probesY)for(const c of ys)if(Math.abs(p-c)<=threshold){y=c-off;break outer2;}
+    return {x,y};
+  }
+
+  function render(){
+    state.selected.clear();
+    setPageSize(...state.doc.pageSize);
+    pageEl.classList.toggle("preview-mode", !!state.previewMode);
+    renderPages(); renderGuides(); renderItems();
+    refreshTransform(); refreshTextPanel();
+    updateMobileDocLabel();
+    updateOrientationHint();
+    rebuildMobileAnchors();
+    if(isMobileUI()) requestAnimationFrame(fitMobilePage);
+  }
+
+  function saveDOMToPage(){
+    currentPage().items.forEach(it=>{
+      if(it.type==="text"){
+        const el=pageEl.querySelector(`.obj[data-id="${it.id}"] .text-content`);
+        if(el)it.html=el.innerHTML;
+      }else if(it.type==="table"){
+        const el=pageEl.querySelector(`.obj[data-id="${it.id}"]`);
+        if(el){
+          it.cells=[...el.querySelectorAll(".table-cell")].map(c=>c.innerHTML);
+        }
+      }
+    });
+  }
+
+  function addItem(type,r,extra={}){
+    const it={
+      id:uid(),type,
+      x:round(r.x,3),y:round(r.y,3),w:round(r.w,3),h:round(r.h,3),
+      z:10,
+      fontFamily:'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif',fontSize:12,lineHeight:1.5,rubyRatio:.5,
+      columnCount:1,columnGap:5,
+      insetTop:0,insetRight:0,insetBottom:0,insetLeft:0,
+      rows:3,cols:3,cells:["","","","","","","","",""],cellPadding:1,borderWidth:0.2,
+      html:"",src:"",
+      ...extra
+    };
+    currentPage().items.push(it);
+    state.selected.clear();state.selected.add(it.id);
+    renderItems();
+    return it;
+  }
+
+  pageEl.addEventListener("pointerdown",ev=>{
+    if(state.previewMode) return;
+    if(ev.target!==pageEl) return;
+    if(state.tool==="select"){
+      if(!ev.shiftKey){state.selected.clear();applySelectionClasses();}
+      return;
+    }
+    ev.preventDefault();
+    const p=screenToPageMM(ev.clientX,ev.clientY);
+    state.drawing={start:p,cur:p};
+    const ghost=document.createElement("div");
+    ghost.id="drawGhost";ghost.style.position="absolute";ghost.style.border="1px dashed #1f6feb";ghost.style.pointerEvents="none";ghost.style.zIndex=9999;
+    pageEl.appendChild(ghost);
+    pageEl.setPointerCapture(ev.pointerId);
+  });
+
+  pageEl.addEventListener("pointermove",ev=>{
+    if(!state.drawing)return;
+    const p=screenToPageMM(ev.clientX,ev.clientY);state.drawing.cur=p;
+    const x=Math.min(p.x,state.drawing.start.x),y=Math.min(p.y,state.drawing.start.y);
+    const w=Math.abs(p.x-state.drawing.start.x),h=Math.abs(p.y-state.drawing.start.y);
+    const g=$("#drawGhost"); if(g){g.style.left=mm(x);g.style.top=mm(y);g.style.width=mm(w);g.style.height=mm(h);}
+  });
+
+  pageEl.addEventListener("pointerup",ev=>{
+    if(!state.drawing)return;
+    const p=screenToPageMM(ev.clientX,ev.clientY);
+    const x=Math.min(p.x,state.drawing.start.x),y=Math.min(p.y,state.drawing.start.y);
+    const w=Math.abs(p.x-state.drawing.start.x),h=Math.abs(p.y-state.drawing.start.y);
+    $("#drawGhost")?.remove(); state.drawing=null;
+    if(w<3||h<3){setTool("select");return;}
+    if(state.tool==="image"){
+      const it=addItem("image",{x,y,w,h});
+      $("#imageFile").dataset.target=it.id; $("#imageFile").click();
+    }else addItem(state.tool,{x,y,w,h});
+    setTool("select");
+  });
+
+  function setTool(t){
+    if(state.previewMode) setPreviewMode(false);
+    state.tool=t;
+    pageEl.dataset.tool=t;
+    $$(".toolbtn").forEach(b=>b.classList.toggle("active",b.dataset.tool===t));
+    updateMobileToolActive(t);
+    setStatus(({select:"選択",text:"文字枠",image:"画像枠",rect:"四角形",table:"表"})[t]+"ツール");
+  }
+  $$(".toolbtn").forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+
+  function singleSelected(){
+    if(state.selected.size!==1)return null;
+    return getItem([...state.selected][0]);
+  }
+
+  function refreshTransform(){
+    const it=singleSelected(), [ax,ay]=state.anchor;
+    const controls=["xInput","yInput","wInput","hInput","mXInput","mYInput","mWInput","mHInput"]
+      .map(id=>$("#"+id)).filter(Boolean);
+    controls.forEach(c=>c.disabled=!it);
+    if(!it){
+      ["mXInput","mYInput","mWInput","mHInput"].forEach(id=>{const e=$("#"+id); if(e)e.value="";});
+      return;
+    }
+    const x=round(it.x+ax*it.w), y=round(it.y+ay*it.h), w=round(it.w), h=round(it.h);
+    $("#xInput").value=x; $("#yInput").value=y; $("#wInput").value=w; $("#hInput").value=h;
+    if($("#mXInput")) $("#mXInput").value=x;
+    if($("#mYInput")) $("#mYInput").value=y;
+    if($("#mWInput")) $("#mWInput").value=w;
+    if($("#mHInput")) $("#mHInput").value=h;
+  }
+
+  function applyTransform(which,val){
+    const it=singleSelected(); if(!it||!Number.isFinite(val))return;
+    const [ax,ay]=state.anchor;
+    const anchorX=it.x+ax*it.w, anchorY=it.y+ay*it.h;
+    if(which==="x")it.x=val-ax*it.w;
+    if(which==="y")it.y=val-ay*it.h;
+    if(which==="w"){it.w=Math.max(1,val);it.x=anchorX-ax*it.w;}
+    if(which==="h"){it.h=Math.max(1,val);it.y=anchorY-ay*it.h;}
+    syncSelectedToDOM();refreshTransform();refreshSelInfo();
+    if(it.type==="text") refreshColumnWidth(it);
+  }
+  $("#xInput").onchange=e=>applyTransform("x",+e.target.value);
+  $("#yInput").onchange=e=>applyTransform("y",+e.target.value);
+  $("#wInput").onchange=e=>applyTransform("w",+e.target.value);
+  $("#hInput").onchange=e=>applyTransform("h",+e.target.value);
+
+  $("#mXInput").onchange=e=>applyTransform("x",+e.target.value);
+  $("#mYInput").onchange=e=>applyTransform("y",+e.target.value);
+  $("#mWInput").onchange=e=>applyTransform("w",+e.target.value);
+  $("#mHInput").onchange=e=>applyTransform("h",+e.target.value);
+
+  function align(mode){
+    const a=[...state.selected].map(getItem); if(a.length<2)return;
+    const left=Math.min(...a.map(i=>i.x)),right=Math.max(...a.map(i=>i.x+i.w));
+    const top=Math.min(...a.map(i=>i.y)),bottom=Math.max(...a.map(i=>i.y+i.h));
+    const cx=(left+right)/2,cy=(top+bottom)/2;
+    a.forEach(i=>{
+      if(mode==="left")i.x=left;
+      if(mode==="hcenter")i.x=cx-i.w/2;
+      if(mode==="right")i.x=right-i.w;
+      if(mode==="top")i.y=top;
+      if(mode==="vcenter")i.y=cy-i.h/2;
+      if(mode==="bottom")i.y=bottom-i.h;
+    });
+    syncSelectedToDOM();refreshTransform();refreshSelInfo();
+  }
+  $$("[data-align]").forEach(b=>b.onclick=()=>align(b.dataset.align));
+
+  function distribute(axis){
+    const a=[...state.selected].map(getItem); if(a.length<3)return;
+    if(axis==="h"){
+      a.sort((p,q)=>p.x-q.x);
+      const first=a[0].x,last=a.at(-1).x+a.at(-1).w,total=a.reduce((s,i)=>s+i.w,0);
+      const gap=(last-first-total)/(a.length-1);let x=first;
+      a.forEach(i=>{i.x=x;x+=i.w+gap;});
+    }else{
+      a.sort((p,q)=>p.y-q.y);
+      const first=a[0].y,last=a.at(-1).y+a.at(-1).h,total=a.reduce((s,i)=>s+i.h,0);
+      const gap=(last-first-total)/(a.length-1);let y=first;
+      a.forEach(i=>{i.y=y;y+=i.h+gap;});
+    }
+    syncSelectedToDOM();refreshTransform();refreshSelInfo();
+  }
+  $$("[data-distribute]").forEach(b=>b.onclick=()=>distribute(b.dataset.distribute));
+
+  function gapPlace(axis,gap){
+    const a=[...state.selected].map(getItem);if(a.length<2)return;
+    if(axis==="h"){
+      a.sort((p,q)=>p.x-q.x);let x=a[0].x+a[0].w+gap;
+      for(let n=1;n<a.length;n++){a[n].x=x;x+=a[n].w+gap;}
+    }else{
+      a.sort((p,q)=>p.y-q.y);let y=a[0].y+a[0].h+gap;
+      for(let n=1;n<a.length;n++){a[n].y=y;y+=a[n].h+gap;}
+    }
+    syncSelectedToDOM();refreshTransform();refreshSelInfo();
+  }
+  $$("[data-gap]").forEach(b=>b.onclick=()=>gapPlace(b.dataset.gap,+$("#gapInput").value||0));
+
+
+  function normalizeFontValue(font){
+    const f=String(font||"");
+    if(f.includes(",") || f==="sans-serif" || f==="serif" || f==="monospace") return f;
+    const low=f.toLowerCase();
+    if(low.includes("mincho") || low.includes("明朝")){
+      return '"Yu Mincho","Hiragino Mincho ProN","Noto Serif CJK JP","Noto Serif JP",serif';
+    }
+    if(low.includes("meiryo")){
+      return '"Meiryo","Hiragino Kaku Gothic ProN","Noto Sans CJK JP",sans-serif';
+    }
+    if(low.includes("gothic") || low.includes("ゴシック")){
+      return '"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
+    }
+    return '"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
+  }
+
+  function setFontSelectValue(selectEl, font){
+    if(!selectEl) return;
+    const v=normalizeFontValue(font);
+    const exists=[...selectEl.options].some(o=>o.value===v);
+    selectEl.value=exists ? v : selectEl.options[0].value;
+  }
+
+  function refreshTextPanel(){
+    const it=singleSelected();
+    const textOk=it?.type==="text";
+    const typeOk=it && (it.type==="text" || it.type==="table");
+
+    ["fontSelect","fontSizeInput","lineHeightInput"].forEach(id=>$("#"+id).disabled=!typeOk);
+    ["rubyRatioInput","rubyBtn","columnCountInput","columnGapInput",
+       "insetTopInput","insetRightInput","insetBottomInput","insetLeftInput"].forEach(id=>$("#"+id).disabled=!textOk);
+    $("#columnWidthOutput").disabled=!textOk;
+
+    if(typeOk){
+      $("#fontSelect").value=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
+      $("#fontSizeInput").value=it.fontSize||12;
+      $("#lineHeightInput").value=it.lineHeight||1.5;
+      syncMobileTypeControls(it);
+    }else{
+      disableMobileTypeControls(true);
+    }
+
+    if(textOk){
+      $("#rubyRatioInput").value=it.rubyRatio??.5;
+      $("#columnCountInput").value=it.columnCount??1;
+      $("#columnGapInput").value=it.columnGap??5;
+      refreshColumnWidth(it);
+      $("#insetTopInput").value=it.insetTop??0;
+      $("#insetRightInput").value=it.insetRight??0;
+      $("#insetBottomInput").value=it.insetBottom??0;
+      $("#insetLeftInput").value=it.insetLeft??0;
+    }
+
+    refreshTablePanel(it);
+  }
+
+  function disableMobileTypeControls(disabled){
+    ["mFontSelect","mFontSizeInput","mLineHeightInput"].forEach(id=>{ const e=$("#"+id); if(e)e.disabled=disabled; });
+    const rb=$("#mRubyBtn"); if(rb) rb.disabled=disabled;
+  }
+
+  function syncMobileTypeControls(it){
+    disableMobileTypeControls(false);
+    $("#mFontSelect").value=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
+    $("#mFontSizeInput").value=it.fontSize||12;
+    $("#mLineHeightInput").value=it.lineHeight||1.5;
+    $("#mRubyBtn").disabled=it.type!=="text";
+  }
+
+  function refreshColumnWidth(it){
+    if(!it || it.type!=="text"){
+      $("#columnWidthOutput").value="";
+      return;
+    }
+    const n=Math.max(1, Math.floor(it.columnCount ?? 1));
+    const gap=Math.max(0, Number(it.columnGap ?? 5));
+    const usable=Math.max(0, Number(it.w) - Number(it.insetLeft ?? 0) - Number(it.insetRight ?? 0) - gap*(n-1));
+    $("#columnWidthOutput").value=round(usable/n,2);
+  }
+
+
+  function applyWholeFrameFont(it, family){
+    if(!it || it.type!=="text") return;
+    it.fontFamily=family;
+    const el=pageEl.querySelector(`.obj[data-id="${it.id}"] .text-content`);
+    if(!el) return;
+
+    el.style.setProperty("font-family", family, "important");
+    el.querySelectorAll("*").forEach(node=>{
+      if(node.classList?.contains("ruby-overlay")) return;
+      node.style.setProperty("font-family", family, "important");
+      if(node.hasAttribute("face")) node.removeAttribute("face");
+    });
+
+    it.html=el.innerHTML;
+    const obj=el.closest(".obj");
+    requestAnimationFrame(()=>renderRubyOverlays(it,obj));
+  }
+
+  function applyTextStyle(){
+    const it=singleSelected(); if(!it || !["text","table"].includes(it.type))return;
+    const chosenFont=$("#fontSelect").value;
+    it.fontFamily=chosenFont;
+    it.fontSize=+$("#fontSizeInput").value||12;
+    it.lineHeight=+$("#lineHeightInput").value||1.5;
+
+    if(it.type==="text"){
+      applyWholeFrameFont(it, chosenFont);
+      it.rubyRatio=+$("#rubyRatioInput").value||.5;
+      it.columnCount=Math.max(1, Math.floor(+$("#columnCountInput").value||1));
+      it.columnGap=Math.max(0, +$("#columnGapInput").value||0);
+      it.insetTop=+$("#insetTopInput").value||0;
+      it.insetRight=+$("#insetRightInput").value||0;
+      it.insetBottom=+$("#insetBottomInput").value||0;
+      it.insetLeft=+$("#insetLeftInput").value||0;
+      const el=pageEl.querySelector(`.obj[data-id="${it.id}"] .text-content`);
+      if(el){
+        el.style.fontFamily=it.fontFamily;el.style.fontSize=`${it.fontSize}pt`;el.style.lineHeight=it.lineHeight;
+        el.style.paddingTop=mm(it.insetTop);el.style.paddingRight=mm(it.insetRight);
+        el.style.paddingBottom=mm(it.insetBottom);el.style.paddingLeft=mm(it.insetLeft);
+        el.style.columnCount=String(it.columnCount);
+        el.style.columnGap=mm(it.columnGap);
+        el.style.columnFill="auto";
+        it.html=el.innerHTML;
+        refreshColumnWidth(it);
+        const obj=el.closest(".obj");
+        requestAnimationFrame(()=>renderRubyOverlays(it,obj));
+      }
+    }else{
+      const grid=pageEl.querySelector(`.obj[data-id="${it.id}"] .table-grid`);
+      if(grid) applyTextMetricsToTable(it,grid);
+    }
+    syncMobileTypeControls(it);
+  }
+
+  function applyMobileTextStyle(){
+    const it=singleSelected(); if(!it || !["text","table"].includes(it.type)) return;
+    const family=$("#mFontSelect").value;
+    it.fontFamily=family;
+    it.fontSize=+$("#mFontSizeInput").value||12;
+    it.lineHeight=+$("#mLineHeightInput").value||1.5;
+    setFontSelectValue($("#fontSelect"), family);
+    $("#fontSizeInput").value=it.fontSize;
+    $("#lineHeightInput").value=it.lineHeight;
+    if(it.type==="text") applyWholeFrameFont(it, family);
+    applyTextStyle();
+  }
+
+  ["fontSelect","fontSizeInput","lineHeightInput","rubyRatioInput",
+     "columnCountInput","columnGapInput"].forEach(id=>{
+    $("#"+id).onchange=applyTextStyle;
+    if(id==="fontSelect") $("#"+id).oninput=applyTextStyle;
+  });
+
+  ["mFontSelect","mFontSizeInput","mLineHeightInput"].forEach(id=>{
+    $("#"+id).onchange=applyMobileTextStyle;
+    if(id==="mFontSelect") $("#"+id).oninput=applyMobileTextStyle;
+  });
+  $("#mRubyBtn").onclick=()=>$("#rubyBtn").click();
+
+  ["insetTopInput","insetRightInput","insetBottomInput","insetLeftInput"].forEach(id=>{
+    $("#"+id).onchange=e=>{
+      if($("#linkInsetCheck").checked){
+        const v=e.target.value;
+        ["insetTopInput","insetRightInput","insetBottomInput","insetLeftInput"].forEach(other=>$("#"+other).value=v);
+      }
+      applyTextStyle();
+    };
+  });
+
+  $("#rubyBtn").onclick=()=>{
+    const it=singleSelected(); if(!it||it.type!=="text")return;
+    const el=pageEl.querySelector(`.obj[data-id="${it.id}"] .text-content`);
+    const sel=window.getSelection();
+    if(!el || !sel.rangeCount || sel.isCollapsed){alert("文字枠をダブルクリックして、ルビを付ける文字を選択してください。");return;}
+    const range=sel.getRangeAt(0);
+    if(!el.contains(range.commonAncestorContainer)){alert("選択した文字がこの文字枠内にありません。");return;}
+    const base=sel.toString(); if(!base)return;
+    const reading=prompt(`「${base}」のルビを入力してください`,""); if(!reading)return;
+    const marker=document.createElement("span");
+    marker.className="ruby-base";
+    marker.dataset.ruby=reading;
+    marker.textContent=base;
+    range.deleteContents();range.insertNode(marker);
+    sel.removeAllRanges();
+    it.html=el.innerHTML;
+    renderRubyOverlays(it,el.closest(".obj"));
+  };
+
+
+  function refreshTablePanel(it=singleSelected()){
+    const ok=it?.type==="table";
+    ["tableRowsInput","tableColsInput","tablePaddingInput","tableBorderInput","applyTableBtn"].forEach(id=>{
+      const e=$("#"+id); if(e)e.disabled=!ok;
+    });
+    if(!ok)return;
+    $("#tableRowsInput").value=it.rows||3;
+    $("#tableColsInput").value=it.cols||3;
+    $("#tablePaddingInput").value=it.cellPadding??1;
+    $("#tableBorderInput").value=it.borderWidth??0.2;
+  }
+
+  function applyTableSettings(){
+    const it=singleSelected(); if(!it || it.type!=="table")return;
+    const oldRows=it.rows||3, oldCols=it.cols||3, old=[...(it.cells||[])];
+    const rows=Math.max(1,Math.min(50,Math.floor(+$("#tableRowsInput").value||3)));
+    const cols=Math.max(1,Math.min(20,Math.floor(+$("#tableColsInput").value||3)));
+    const next=Array(rows*cols).fill("");
+    for(let r=0;r<Math.min(oldRows,rows);r++){
+      for(let c=0;c<Math.min(oldCols,cols);c++){
+        next[r*cols+c]=old[r*oldCols+c]||"";
+      }
+    }
+    it.rows=rows;it.cols=cols;it.cells=next;
+    it.cellPadding=Math.max(0,+$("#tablePaddingInput").value||0);
+    it.borderWidth=Math.max(0,+$("#tableBorderInput").value||0);
+    renderItems();
+    refreshTablePanel(it);
+  }
+
+  $("#applyTableBtn").onclick=applyTableSettings;
+
+  $("#imageFile").onchange=ev=>{
+    const f=ev.target.files[0]; if(!f)return;
+    const id=ev.target.dataset.target,it=getItem(id);if(!it)return;
+    const rd=new FileReader();
+    rd.onload=()=>{it.src=rd.result;renderItems();};
+    rd.readAsDataURL(f);ev.target.value="";
+  };
+
+  function addGuide(axis){
+    const {w,h}=pageWH(),max=axis==="v"?w:h;
+    const raw=prompt(`${axis==="v"?"X":"Y"}位置を mm で入力`, "10");
+    if(raw===null)return; const val=+raw;
+    if(!Number.isFinite(val)||val<0||val>max){alert(`0〜${max} mmで入力してください。`);return;}
+    const arr=axis==="v"?currentPage().guidesV:currentPage().guidesH;
+    if(!arr.includes(val)){arr.push(val);arr.sort((a,b)=>a-b);}
+    renderGuides();
+  }
+  $("#addGuideV").onclick=()=>addGuide("v");
+  $("#addGuideH").onclick=()=>addGuide("h");
+
+  $("#snapCheck").onchange=e=>state.snap=e.target.checked;
+
+  $("#paperSelect").onchange=applyPaper;
+  $("#orientationSelect").onchange=applyPaper;
+  function applyPaper(){
+    const base=$("#paperSelect").value==="A4"?[210,297]:[182,257];
+    const [w,h]=$("#orientationSelect").value==="landscape"?[base[1],base[0]]:base;
+    state.doc.pageSize=[w,h];
+    state.doc.pages.forEach(p=>{
+      p.guidesV=p.guidesV.filter(x=>x<=w);
+      p.guidesH=p.guidesH.filter(y=>y<=h);
+    });
+    render();
+  }
+
+  $("#zoomSelect").onchange=e=>{state.zoom=(+e.target.value||100)/100;setPageSize(...state.doc.pageSize);};
+
+  $("#newBtn").onclick=()=>{
+    if(!confirm("新しい文書を作りますか？現在の未保存内容は失われます。"))return;
+    state.doc={app:"Simple Typesetter Mobile",version:"0.12",pageSize:[182,257],pages:[{items:[],guidesV:[10,172],guidesH:[10,247]}]};
+    state.pageIndex=0;$("#paperSelect").value="B5";$("#orientationSelect").value="portrait";render();
+  };
+  $("#addPageBtn").onclick=()=>{
+    saveDOMToPage();const [w,h]=state.doc.pageSize;
+    state.doc.pages.push({items:[],guidesV:[10,w-10],guidesH:[10,h-10]});
+    state.pageIndex=state.doc.pages.length-1;render();
+  };
+  $("#dupPageBtn").onclick=()=>{
+    saveDOMToPage();
+    const p=structuredClone(currentPage());
+    state.doc.pages.splice(state.pageIndex+1,0,p);state.pageIndex++;render();
+  };
+
+  $("#saveBtn").onclick=()=>{
+    saveDOMToPage();
+    const blob=new Blob([JSON.stringify(state.doc,null,2)],{type:"application/json"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="document.stjson";a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  };
+  $("#openBtn").onclick=()=>$("#openFile").click();
+  $("#openFile").onchange=ev=>{
+    const f=ev.target.files[0];if(!f)return;
+    const rd=new FileReader();
+    rd.onload=()=>{
+      try{
+        const d=JSON.parse(rd.result);
+        if(!Array.isArray(d.pageSize)||!Array.isArray(d.pages))throw new Error("文書形式が違います");
+        state.doc=d;state.pageIndex=0;
+        const [w,h]=d.pageSize;
+        const portrait=h>=w;
+        const isA4=Math.min(w,h)>190;
+        $("#paperSelect").value=isA4?"A4":"B5";
+        $("#orientationSelect").value=portrait?"portrait":"landscape";
+        render();
+      }catch(e){alert("読み込みに失敗しました: "+e.message);}
+    };
+    rd.readAsText(f,"utf-8");ev.target.value="";
+  };
+
+  $("#printBtn").onclick=()=>{
+    saveDOMToPage();
+    const original=state.pageIndex;
+    const printWin=window.open("","_blank");
+    if(!printWin){alert("ポップアップがブロックされています。");return;}
+    const [w,h]=state.doc.pageSize;
+    const pagesHtml=state.doc.pages.map((p,idx)=>{
+      const objs=p.items.map(it=>{
+        const base=`position:absolute;left:${it.x}mm;top:${it.y}mm;width:${it.w}mm;height:${it.h}mm;box-sizing:border-box;`;
+        if(it.type==="text")return `<div class="print-text" style="${base}overflow:hidden;font-family:${cssEsc(it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif')};font-size:${it.fontSize||12}pt;line-height:${it.lineHeight||1.5};padding:${it.insetTop??0}mm ${it.insetRight??0}mm ${it.insetBottom??0}mm ${it.insetLeft??0}mm;white-space:pre-wrap;column-count:${Math.max(1,it.columnCount??1)};column-gap:${it.columnGap??5}mm;column-fill:auto;">${it.html||""}</div>`;
+        if(it.type==="image")return `<div style="${base}overflow:hidden">${it.src?`<img src="${it.src}" style="width:100%;height:100%;object-fit:cover">`:""}</div>`;
+        if(it.type==="table"){
+          normalizeTableCells(it);
+          const cells=it.cells.map(c=>`<div style="overflow:hidden;border:${(it.borderWidth??0.2)/2}mm solid #222;padding:${it.cellPadding??1}mm;box-sizing:border-box">${c||""}</div>`).join("");
+          return `<div style="${base}display:grid;grid-template-columns:repeat(${it.cols||3},1fr);grid-template-rows:repeat(${it.rows||3},1fr);font-family:${cssEsc(it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif')};font-size:${it.fontSize||12}pt;line-height:${it.lineHeight||1.5};overflow:hidden">${cells}</div>`;
+        }
+        return `<div style="${base}border:.3mm solid #222"></div>`;
+      }).join("");
+      return `<section class="sheet">${objs}</section>`;
+    }).join("");
+    printWin.document.write(`<!doctype html><meta charset="utf-8"><title>Print</title>
+      <style>@page{size:${w}mm ${h}mm;margin:0}html,body{margin:0;padding:0}.sheet{position:relative;width:${w}mm;height:${h}mm;page-break-after:always;overflow:hidden}.sheet:last-child{page-break-after:auto}.ruby-base{position:relative;display:inline}.ruby-base::before{content:attr(data-ruby);position:absolute;left:50%;top:0;transform:translate(-50%,-100%);white-space:nowrap;line-height:1;font-size:.5em}</style>
+      ${pagesHtml}<script>onload=()=>setTimeout(()=>print(),250)<\/script>`);
+    printWin.document.close();
+    state.pageIndex=original;
+  };
+
+  function cssEsc(s){ return String(s).replace(/[;"']/g,""); }
+
+  window.addEventListener("keydown",ev=>{
+    if(state.previewMode) return;
+    const tag=document.activeElement?.tagName;
+    if(tag==="INPUT"||tag==="SELECT"||document.activeElement?.isContentEditable)return;
+    if(ev.key==="Delete"){
+      currentPage().items=currentPage().items.filter(i=>!state.selected.has(i.id));
+      state.selected.clear();renderItems();ev.preventDefault();return;
+    }
+    if(!["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(ev.key)||state.selected.size===0)return;
+    let step=1;if(ev.shiftKey)step=.1;else if(ev.ctrlKey||ev.metaKey)step=10;
+    let dx=0,dy=0;if(ev.key==="ArrowLeft")dx=-step;if(ev.key==="ArrowRight")dx=step;if(ev.key==="ArrowUp")dy=-step;if(ev.key==="ArrowDown")dy=step;
+    state.selected.forEach(id=>{const i=getItem(id);i.x+=dx;i.y+=dy;});
+    syncSelectedToDOM();refreshTransform();refreshSelInfo();ev.preventDefault();
+  });
+
+  $("#canvasWrap").addEventListener("pointerdown",ev=>{
+    if(ev.target===$("#canvasWrap") && state.tool==="select"){state.selected.clear();applySelectionClasses();}
+  });
+
+
+  // ===== Mobile toolbar / sheets =====
+  $("#mNewBtn")?.addEventListener("click",()=>$("#newBtn").click());
+  $("#mOpenBtn")?.addEventListener("click",()=>$("#openBtn").click());
+  $("#mSaveBtn")?.addEventListener("click",()=>$("#saveBtn").click());
+  $("#mPrintBtn")?.addEventListener("click",()=>$("#printBtn").click());
+  $("#mFitBtn")?.addEventListener("click",()=>fitMobilePage());
+
+  $("#mMenuBtn")?.addEventListener("click",toggleMobileMenu);
+  $("#mPreviewBtn")?.addEventListener("click",togglePreviewMode);
+  $("#mMenuCloseBtn")?.addEventListener("click",closeSheets);
+  $("#mMenuNewBtn")?.addEventListener("click",()=>{ closeSheets(); $("#newBtn").click(); });
+  $("#mMenuOpenBtn")?.addEventListener("click",()=>{ closeSheets(); $("#openBtn").click(); });
+  $("#mMenuSaveBtn")?.addEventListener("click",()=>{ closeSheets(); $("#saveBtn").click(); });
+  $("#mMenuPrintBtn")?.addEventListener("click",()=>{ closeSheets(); $("#printBtn").click(); });
+  $("#mMenuFitBtn")?.addEventListener("click",()=>{ closeSheets(); fitMobilePage(); });
+  $("#mMenuPagesBtn")?.addEventListener("click",()=>{ closeSheets(); openSheet("pages"); });
+
+  document.querySelectorAll("[data-mobile-tool]").forEach(b=>{
+    b.addEventListener("click",()=>{
+      closeSheets();
+      setTool(b.dataset.mobileTool);
+    });
+  });
+  document.querySelectorAll("[data-sheet]").forEach(b=>{
+    b.addEventListener("click",()=>openSheet(b.dataset.sheet));
+  });
+  document.querySelectorAll("[data-close-sheet]").forEach(b=>{
+    b.addEventListener("click",closeSheets);
+  });
+
+  // Close a sheet when tapping the canvas; keep the page itself fully interactive.
+  $("#canvasWrap")?.addEventListener("pointerdown",e=>{
+    if(isMobileUI() && (e.target===$("#canvasWrap") || e.target===pageEl)) closeSheets();
+  }, {passive:true});
+
+  window.addEventListener("resize",()=>{
+    updateOrientationHint();
+    if(isMobileUI()) requestAnimationFrame(fitMobilePage);
+  });
+  window.addEventListener("orientationchange",()=>{
+    setTimeout(()=>{
+      updateOrientationHint();
+      if(isMobileUI()) fitMobilePage();
+    },160);
+  });
+
+  rebuildAnchors();
+  rebuildMobileAnchors();
+  render();
+})();
+</script>
+</body>
+</html>
