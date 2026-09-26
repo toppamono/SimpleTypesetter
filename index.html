@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.13</title>
+<title>Simple Typesetter Mobile v0.12.14</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -811,10 +811,18 @@
           <option value='serif'>Serif</option>
           <option value='monospace'>Monospace</option>
         </select>
-        <input id="mFontSizeInput" class="m-size" type="number" step="0.5" value="12" title="文字サイズ(pt)">
-        <span style="font-size:11px">pt</span>
-        <input id="mLineHeightInput" class="m-line" type="number" step="0.1" value="1.5" title="行送り倍率">
-        <button id="mRubyBtn" title="選択文字にルビ">ルビ</button>
+        <div class="m-unit-input">
+          <input id="mFontSizeInput" class="m-size" type="number" step="1" min="1" value="17" title="文字サイズ（Q）" inputmode="decimal">
+          <span class="unit">Q</span>
+        </div>
+        <div class="m-unit-input">
+          <input id="mLineHeightInput" class="m-line" type="number" step="1" min="1" value="26" title="行送り（H）" inputmode="decimal">
+          <span class="unit">H</span>
+        </div>
+        <button class="m-type-icon" id="mBoldBtn" type="button" title="太字" aria-label="太字">B</button>
+        <button class="m-type-icon underline" id="mUnderlineBtn" type="button" title="下線" aria-label="下線">U</button>
+        <button class="m-type-icon m-color-icon" id="mColorBtn" type="button" title="文字色" aria-label="文字色" style="--text-color:#111111">A</button>
+        <button class="m-type-icon" id="mMoreTypeBtn" type="button" title="その他" aria-label="その他">…</button>
       </div>
 
       <div class="text-format-pane hidden" id="mParagraphFormatPane" aria-label="段組み設定">
@@ -822,6 +830,12 @@
       </div>
     </div>
   </div>
+
+  <div class="m-more-menu" id="mMoreTypeMenu">
+    <button id="mRubyBtn" type="button">ルビ</button>
+    <button id="mTypeDetailsBtn" type="button">文字の詳細設定…</button>
+  </div>
+  <input id="mTextColorInput" type="color" value="#111111" aria-label="文字色">
 
   <div class="orientation-hint" id="orientationHint">
     <div id="orientationHintText">端末を回転してください</div>
@@ -1147,7 +1161,7 @@
     paraPane.classList.toggle("hidden", !paragraphMode);
 
     // The glyph names the view you can switch to next.
-    toggle.textContent=paragraphMode ? "字" : "段";
+    toggle.textContent=paragraphMode ? "文" : "段";
     toggle.title=paragraphMode ? "文字設定へ切り替え" : "段組み設定へ切り替え";
     toggle.setAttribute("aria-label", toggle.title);
     toggle.setAttribute("aria-pressed", String(paragraphMode));
@@ -1354,6 +1368,35 @@
     });
   }
 
+  const PT_TO_MM=25.4/72;
+  const QH_TO_MM=.25;
+
+  function ensureJapaneseMetrics(it){
+    if(!it) return;
+    if(!Number.isFinite(Number(it.fontSizeQ))){
+      it.fontSizeQ=round((Number(it.fontSize)||12)*PT_TO_MM/QH_TO_MM,2);
+    }
+    if(!Number.isFinite(Number(it.lineHeightH))){
+      it.lineHeightH=round(it.fontSizeQ*(Number(it.lineHeight)||1.5),2);
+    }
+  }
+
+  function fontSizeCss(it){
+    ensureJapaneseMetrics(it);
+    return `${round(it.fontSizeQ*QH_TO_MM,4)}mm`;
+  }
+
+  function lineHeightCss(it){
+    ensureJapaneseMetrics(it);
+    return `${round(it.lineHeightH*QH_TO_MM,4)}mm`;
+  }
+
+  function syncLegacyMetricsFromQH(it){
+    ensureJapaneseMetrics(it);
+    it.fontSize=round((it.fontSizeQ*QH_TO_MM)/PT_TO_MM,3);
+    it.lineHeight=round(it.lineHeightH/Math.max(.01,it.fontSizeQ),4);
+  }
+
   function objHtml(it){
     const el=document.createElement("div");
     el.className=`obj ${it.type}`;
@@ -1366,8 +1409,11 @@
     if(it.type==="text"){
       content.innerHTML=it.html || "";
       content.style.fontFamily=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
-      content.style.fontSize=`${it.fontSize||12}pt`;
-      content.style.lineHeight=String(it.lineHeight||1.5);
+      content.style.fontSize=fontSizeCss(it);
+      content.style.lineHeight=lineHeightCss(it);
+      content.style.fontWeight=it.fontWeight||"400";
+      content.style.textDecoration=it.textDecoration||"none";
+      content.style.color=it.color||"#111111";
       content.style.paddingTop=mm(it.insetTop ?? 0);
       content.style.paddingRight=mm(it.insetRight ?? 0);
       content.style.paddingBottom=mm(it.insetBottom ?? 0);
@@ -1421,8 +1467,11 @@
 
   function applyTextMetricsToTable(it, grid){
     grid.style.fontFamily=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
-    grid.style.fontSize=`${it.fontSize||12}pt`;
-    grid.style.lineHeight=String(it.lineHeight||1.5);
+    grid.style.fontSize=fontSizeCss(it);
+    grid.style.lineHeight=lineHeightCss(it);
+    grid.style.fontWeight=it.fontWeight||"400";
+    grid.style.textDecoration=it.textDecoration||"none";
+    grid.style.color=it.color||"#111111";
   }
 
   function renderItems(){
@@ -1453,7 +1502,8 @@
       ov.style.left=`${((r.left+r.right)/2-objRect.left)/zoom}px`;
       ov.style.top=`${(r.top-objRect.top)/zoom}px`;
       ov.style.fontFamily=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
-      ov.style.fontSize=`${(it.fontSize||12)*(it.rubyRatio??.5)}pt`;
+      ensureJapaneseMetrics(it);
+      ov.style.fontSize=`${round(it.fontSizeQ*(it.rubyRatio??.5)*QH_TO_MM,4)}mm`;
       el.appendChild(ov);
     });
   }
@@ -1766,7 +1816,9 @@
       id:uid(),type,
       x:round(r.x,3),y:round(r.y,3),w:round(r.w,3),h:round(r.h,3),
       z:10,
-      fontFamily:'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif',fontSize:12,lineHeight:1.5,rubyRatio:.5,
+      fontFamily:'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif',
+      fontSize:12,lineHeight:1.5,fontSizeQ:17,lineHeightH:26,rubyRatio:.5,
+      fontWeight:"400",textDecoration:"none",color:"#111111",
       columnCount:1,columnGap:5,
       insetTop:0,insetRight:0,insetBottom:0,insetLeft:0,
       rows:3,cols:3,cells:["","","","","","","","",""],cellPadding:1,borderWidth:0.2,
@@ -2162,15 +2214,23 @@
   }
 
   function disableMobileTypeControls(disabled){
-    ["mFontSelect","mFontSizeInput","mLineHeightInput"].forEach(id=>{ const e=$("#"+id); if(e)e.disabled=disabled; });
+    ["mFontSelect","mFontSizeInput","mLineHeightInput","mBoldBtn","mUnderlineBtn","mColorBtn","mMoreTypeBtn"].forEach(id=>{
+      const e=$("#"+id); if(e)e.disabled=disabled;
+    });
     const rb=$("#mRubyBtn"); if(rb) rb.disabled=disabled;
   }
 
   function syncMobileTypeControls(it){
     disableMobileTypeControls(false);
+    ensureJapaneseMetrics(it);
     $("#mFontSelect").value=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
-    $("#mFontSizeInput").value=it.fontSize||12;
-    $("#mLineHeightInput").value=it.lineHeight||1.5;
+    $("#mFontSizeInput").value=round(it.fontSizeQ,2);
+    $("#mLineHeightInput").value=round(it.lineHeightH,2);
+    $("#mBoldBtn").classList.toggle("active",(it.fontWeight||"400")==="700");
+    $("#mUnderlineBtn").classList.toggle("active",(it.textDecoration||"none").includes("underline"));
+    const color=it.color||"#111111";
+    $("#mColorBtn").style.setProperty("--text-color",color);
+    $("#mTextColorInput").value=/^#[0-9a-f]{6}$/i.test(color)?color:"#111111";
     $("#mRubyBtn").disabled=it.type!=="text";
   }
 
@@ -2210,6 +2270,8 @@
     it.fontFamily=chosenFont;
     it.fontSize=+$("#fontSizeInput").value||12;
     it.lineHeight=+$("#lineHeightInput").value||1.5;
+    it.fontSizeQ=round(it.fontSize*PT_TO_MM/QH_TO_MM,2);
+    it.lineHeightH=round(it.fontSizeQ*it.lineHeight,2);
 
     if(it.type==="text"){
       applyWholeFrameFont(it, chosenFont);
@@ -2222,7 +2284,8 @@
       it.insetLeft=+$("#insetLeftInput").value||0;
       const el=pageEl.querySelector(`.obj[data-id="${it.id}"] .text-content`);
       if(el){
-        el.style.fontFamily=it.fontFamily;el.style.fontSize=`${it.fontSize}pt`;el.style.lineHeight=it.lineHeight;
+        el.style.fontFamily=it.fontFamily;el.style.fontSize=fontSizeCss(it);el.style.lineHeight=lineHeightCss(it);
+        el.style.fontWeight=it.fontWeight||"400";el.style.textDecoration=it.textDecoration||"none";el.style.color=it.color||"#111111";
         el.style.paddingTop=mm(it.insetTop);el.style.paddingRight=mm(it.insetRight);
         el.style.paddingBottom=mm(it.insetBottom);el.style.paddingLeft=mm(it.insetLeft);
         el.style.columnCount=String(it.columnCount);
@@ -2244,13 +2307,28 @@
     const it=singleSelected(); if(!it || !["text","table"].includes(it.type)) return;
     const family=$("#mFontSelect").value;
     it.fontFamily=family;
-    it.fontSize=+$("#mFontSizeInput").value||12;
-    it.lineHeight=+$("#mLineHeightInput").value||1.5;
-    setFontSelectValue($("#fontSelect"), family);
-    $("#fontSizeInput").value=it.fontSize;
-    $("#lineHeightInput").value=it.lineHeight;
-    if(it.type==="text") applyWholeFrameFont(it, family);
-    applyTextStyle();
+    it.fontSizeQ=Math.max(1,+$("#mFontSizeInput").value||17);
+    it.lineHeightH=Math.max(1,+$("#mLineHeightInput").value||Math.max(1,it.fontSizeQ));
+    syncLegacyMetricsFromQH(it);
+
+    setFontSelectValue($("#fontSelect"),family);
+    $("#fontSizeInput").value=round(it.fontSize,2);
+    $("#lineHeightInput").value=round(it.lineHeight,3);
+
+    if(it.type==="text"){
+      applyWholeFrameFont(it,family);
+      const el=pageEl.querySelector(`.obj[data-id="${it.id}"] .text-content`);
+      if(el){
+        el.style.fontSize=fontSizeCss(it);
+        el.style.lineHeight=lineHeightCss(it);
+        it.html=el.innerHTML;
+        requestAnimationFrame(()=>renderRubyOverlays(it,el.closest(".obj")));
+      }
+    }else{
+      const grid=pageEl.querySelector(`.obj[data-id="${it.id}"] .table-grid`);
+      if(grid) applyTextMetricsToTable(it,grid);
+    }
+    syncMobileTypeControls(it);
   }
 
   ["fontSelect","fontSizeInput","lineHeightInput","rubyRatioInput",
@@ -2263,7 +2341,63 @@
     $("#"+id).onchange=applyMobileTextStyle;
     if(id==="mFontSelect") $("#"+id).oninput=applyMobileTextStyle;
   });
-  $("#mRubyBtn").onclick=()=>$("#rubyBtn").click();
+  function selectionInsideCurrentText(){
+    const it=singleSelected();
+    if(!it || it.type!=="text") return null;
+    const content=pageEl.querySelector(`.obj[data-id="${it.id}"] .text-content`);
+    const sel=window.getSelection();
+    if(!content || !sel || !sel.rangeCount || sel.isCollapsed) return null;
+    const range=sel.getRangeAt(0);
+    return content.contains(range.commonAncestorContainer) ? {it,content,sel,range} : null;
+  }
+
+  function applyInlineOrFrameStyle(kind,value){
+    const selected=selectionInsideCurrentText();
+    const it=singleSelected();
+    if(!it || !["text","table"].includes(it.type)) return;
+
+    if(selected && document.queryCommandSupported?.(kind)){
+      document.execCommand(kind,false,value);
+      selected.it.html=selected.content.innerHTML;
+      return;
+    }
+
+    if(kind==="bold") it.fontWeight=(it.fontWeight||"400")==="700" ? "400" : "700";
+    if(kind==="underline") it.textDecoration=(it.textDecoration||"none").includes("underline") ? "none" : "underline";
+    if(kind==="foreColor") it.color=value;
+
+    const target=pageEl.querySelector(`.obj[data-id="${it.id}"] .${it.type==="text"?"text-content":"table-grid"}`);
+    if(target){
+      target.style.fontWeight=it.fontWeight||"400";
+      target.style.textDecoration=it.textDecoration||"none";
+      target.style.color=it.color||"#111111";
+    }
+    syncMobileTypeControls(it);
+  }
+
+  $("#mBoldBtn").onclick=()=>applyInlineOrFrameStyle("bold");
+  $("#mUnderlineBtn").onclick=()=>applyInlineOrFrameStyle("underline");
+  $("#mColorBtn").onclick=()=>$("#mTextColorInput").click();
+  $("#mTextColorInput").oninput=e=>applyInlineOrFrameStyle("foreColor",e.target.value);
+
+  $("#mMoreTypeBtn").onclick=e=>{
+    e.stopPropagation();
+    $("#mMoreTypeMenu").classList.toggle("open");
+  };
+  $("#mRubyBtn").onclick=()=>{
+    $("#mMoreTypeMenu").classList.remove("open");
+    $("#rubyBtn").click();
+  };
+  $("#mTypeDetailsBtn").onclick=()=>{
+    $("#mMoreTypeMenu").classList.remove("open");
+    openSheet("type");
+  };
+  document.addEventListener("pointerdown",e=>{
+    const menu=$("#mMoreTypeMenu");
+    if(menu?.classList.contains("open") && !menu.contains(e.target) && e.target!==$("#mMoreTypeBtn")){
+      menu.classList.remove("open");
+    }
+  });
 
   ["insetTopInput","insetRightInput","insetBottomInput","insetLeftInput"].forEach(id=>{
     $("#"+id).onchange=e=>{
@@ -2427,7 +2561,50 @@
       return `<section class="sheet">${objs}</section>`;
     }).join("");
     printWin.document.write(`<!doctype html><meta charset="utf-8"><title>Print</title>
-      <style>@page{size:${w}mm ${h}mm;margin:0}html,body{margin:0;padding:0}.sheet{position:relative;width:${w}mm;height:${h}mm;page-break-after:always;overflow:hidden}.sheet:last-child{page-break-after:auto}.ruby-base{position:relative;display:inline}.ruby-base::before{content:attr(data-ruby);position:absolute;left:50%;top:0;transform:translate(-50%,-100%);white-space:nowrap;line-height:1;font-size:.5em}</style>
+      <style>@page{size:${w}mm ${h}mm;margin:0}html,body{margin:0;padding:0}.sheet{position:relative;width:${w}mm;height:${h}mm;page-break-after:always;overflow:hidden}.sheet:last-child{page-break-after:auto}.ruby-base{position:relative;display:inline}.ruby-base::before{content:attr(data-ruby);position:absolute;left:50%;top:0;transform:translate(-50%,-100%);white-space:nowrap;line-height:1;font-size:.5em}
+  /* ===== v0.12.14 Japanese Q/H type controls ===== */
+  .text-format-pane{gap:3px!important}
+  .m-unit-input{position:relative;flex:0 0 auto}
+  .m-unit-input input{padding-right:15px!important;text-align:right!important}
+  .m-unit-input .unit{
+    position:absolute;right:4px;top:50%;transform:translateY(-50%);
+    font-size:10px;color:#555;pointer-events:none;
+  }
+  .m-type-icon{
+    width:29px!important;min-width:29px!important;padding:0!important;
+    display:grid!important;place-items:center;font-weight:700;font-size:15px!important;
+  }
+  .m-type-icon.underline{text-decoration:underline;text-underline-offset:2px}
+  .m-color-icon{position:relative}
+  .m-color-icon::after{
+    content:"";position:absolute;left:6px;right:6px;bottom:4px;height:3px;
+    background:var(--text-color,#111);
+  }
+  .m-more-menu{
+    display:none;position:fixed;right:6px;top:var(--top-total);
+    z-index:20550;min-width:150px;padding:6px;background:#f5f5f5;
+    border:1px solid #999;border-radius:6px;box-shadow:0 4px 14px #0003;
+  }
+  .m-more-menu.open{display:grid;gap:5px}
+  .m-more-menu button{
+    height:36px;text-align:left;padding:4px 10px;border:1px solid #aaa;
+    border-radius:5px;background:white;font-size:13px;
+  }
+  #mTextColorInput{position:fixed;left:-9999px;width:1px;height:1px;opacity:0}
+  @media(max-width:900px){
+    .mobile-format{gap:3px!important;padding-left:4px!important;padding-right:4px!important}
+    .mobile-format .m-font{
+      width:82px!important;min-width:82px!important;max-width:82px!important;
+      text-overflow:ellipsis;
+    }
+    .mobile-format .m-size{width:48px!important}
+    .mobile-format .m-line{width:48px!important}
+    .mobile-format button.active{
+      background:#d6e5f7!important;border-color:#648bb8!important;
+      box-shadow:inset 0 1px 2px #0002;
+    }
+  }
+</style>
       ${pagesHtml}<script>onload=()=>setTimeout(()=>print(),250)<\/script>`);
     printWin.document.close();
     state.pageIndex=original;
