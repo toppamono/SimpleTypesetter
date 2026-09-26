@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12</title>
+<title>Simple Typesetter Mobile v0.12.1</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -633,6 +633,62 @@
     cursor:default!important;
   }
 
+  /* CS2-style control strip: neutral chrome, compact fields, explicit mode. */
+  .mode-btn{display:flex;align-items:center;justify-content:center;gap:5px;
+    height:28px;padding:2px 8px;border:1px solid #aaa;border-radius:2px;
+    background:linear-gradient(#fafafa,#dedede);color:#222;font-size:11px;white-space:nowrap}
+  .mode-btn svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.4}
+  .mode-btn .preview-icon{display:none}
+  .mode-btn.preview-on .work-icon{display:none}
+  .mode-btn.preview-on .preview-icon{display:block}
+  .mode-btn.preview-on{background:#d5e2ef;border-color:#6585a5}
+  .mode-btn:focus-visible,.mobile-transform button:focus-visible{outline:2px solid #1f6feb;outline-offset:-2px}
+  #desktopPreviewBtn{margin-left:auto}
+  .menubar,.toolbar{background:linear-gradient(#eeeeee,#dcdcdc)}
+  .toolbtn{border-radius:2px;background:linear-gradient(#fafafa,#e2e2e2);font-size:12px}
+  .toolbtn.active{background:#c5c5c5;border-color:#8c8c8c;box-shadow:inset 0 1px 2px #999}
+  #page:not(.preview-mode) .obj.text{outline:1px solid #c8c8c8;outline-offset:-1px}
+  #page:not(.preview-mode) .obj.image{outline:1px solid #8daed1;outline-offset:-1px}
+  #page:not(.preview-mode) .obj.selected{outline:1px solid #1f6feb}
+  #page.preview-mode .obj.image{background:transparent}
+  #page.preview-mode [contenteditable]{caret-color:transparent;background:transparent}
+  @media (max-width:900px){
+    :root{--transform-h:40px}
+    .mobile-transform{
+      grid-template-columns:26px 26px 26px 28px repeat(4,minmax(0,1fr)) 60px!important;
+      column-gap:2px!important;padding:3px 4px!important;
+      background:linear-gradient(#f0f0f0,#d9d9d9)!important;
+      border-bottom:1px solid #999;box-shadow:inset 0 1px #fff;
+    }
+    .mobile-transform .m-btn{width:26px!important;border-radius:2px!important}
+    .mobile-transform .m-btn.active{background:#c5c5c5;box-shadow:inset 0 0 0 1px #999,inset 0 1px 2px #aaa}
+    .mobile-transform .m-tool-text{font-family:Georgia,'Times New Roman',serif;font-weight:bold}
+    .mobile-transform .m-anchor-grid{width:28px!important;min-width:28px!important;border-right:1px solid #b6b6b6!important}
+    .mobile-transform .m-field{grid-template-columns:9px minmax(0,1fr)!important}
+    .mobile-transform .m-field input{height:25px!important;border:1px solid #aaa!important;
+      border-top-color:#888!important;box-shadow:inset 0 1px 2px #0000000d!important;font-size:11px!important;line-height:normal}
+    .mobile-transform .m-field input:disabled{background:#e5e5e5!important;color:#777}
+    .mobile-transform .m-preview-btn{width:60px!important;height:34px!important;
+      display:flex;flex-direction:column;gap:0;padding:1px!important;
+      border:1px solid #aaa;background:linear-gradient(#fafafa,#dedede)}
+    .mobile-transform .m-preview-btn svg{width:18px;height:18px}
+    .mobile-transform .mode-label{font-size:9px;line-height:12px}
+    .mobile-transform .m-preview-btn.preview-on{background:#d5e2ef!important;box-shadow:inset 0 0 0 1px #6585a5!important}
+    @media(max-width:360px){
+      .mobile-transform{grid-template-columns:23px 23px 23px 26px repeat(4,minmax(0,1fr)) 56px!important;column-gap:1px!important;padding:3px 2px!important}
+      .mobile-transform .m-btn{width:23px!important}
+      .mobile-transform .m-anchor-grid{width:26px!important;min-width:26px!important}
+      .mobile-transform .m-preview-btn{width:56px!important}
+      .mobile-transform .m-field input{font-size:10px!important}
+    }
+  }
+  @media print{
+    .mobile-transform,.mobile-top,.mobile-format,.mobile-bottom,.mobile-menu-sheet,.orientation-hint{display:none!important}
+    #page .obj{outline:none!important}
+    #page .obj.image{background:transparent!important}
+    #page .image-content>div{display:none!important}
+    #page [contenteditable]{background:transparent!important}
+  }
 </style>
 </head>
 <body>
@@ -655,11 +711,10 @@
     <div class="m-field"><span class="label">Y</span><input id="mYInput" type="number" step="0.1" inputmode="decimal"></div>
     <div class="m-field"><span class="label">W</span><input id="mWInput" type="number" step="0.1" min="1" inputmode="decimal"></div>
     <div class="m-field"><span class="label">H</span><input id="mHInput" type="number" step="0.1" min="1" inputmode="decimal"></div>
-    <button class="m-btn m-preview-btn" id="mPreviewBtn" title="プレビュー表示" aria-label="作業モードとプレビューモードを切り替え">
-      <svg class="m-preview-icon" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M2.5 12s3.4-5.5 9.5-5.5S21.5 12 21.5 12 18.1 17.5 12 17.5 2.5 12 2.5 12Z"/>
-        <circle cx="12" cy="12" r="2.7"/>
-      </svg>
+    <button class="m-btn m-preview-btn mode-btn" id="mPreviewBtn" title="現在：作業モード。クリックでプレビュー" aria-label="現在：作業モード。プレビューに切り替え" aria-pressed="false">
+      <svg class="work-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM2 7h20M8 1v22"/><path d="M11 11h5v6h-5z" stroke-dasharray="2 1"/></svg>
+      <svg class="preview-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM8 8h8M8 12h8M8 16h5"/></svg>
+      <span class="mode-label">作業</span>
     </button>
   </div>
 
@@ -718,6 +773,11 @@
     <button id="printBtn">PDF/印刷</button>
     <button id="dupPageBtn">ページ複製</button>
     <button id="addPageBtn">ページ追加</button>
+    <button class="mode-btn" id="desktopPreviewBtn" title="現在：作業モード。クリックでプレビュー" aria-label="現在：作業モード。プレビューに切り替え" aria-pressed="false">
+      <svg class="work-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM2 7h20M8 1v22"/><path d="M11 11h5v6h-5z" stroke-dasharray="2 1"/></svg>
+      <svg class="preview-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM8 8h8M8 12h8M8 16h5"/></svg>
+      <span class="mode-label">作業</span>
+    </button>
   </div>
 
   <div class="toolbar">
@@ -950,15 +1010,30 @@
 
 
   function setPreviewMode(on){
+    // Commit both text-frame and table-cell edits before hiding editing aids.
+    if(on){
+      pageEl.querySelectorAll('[contenteditable="true"]').forEach(el=>{
+        el.blur();
+        el.contentEditable="false";
+      });
+      saveDOMToPage();
+      window.getSelection()?.removeAllRanges();
+      state.editItem=null;
+      state.drag=null;state.resize=null;state.drawing=null;
+      $("#drawGhost")?.remove();
+    }
     state.previewMode=!!on;
     pageEl.classList.toggle("preview-mode", state.previewMode);
 
-    const btn=$("#mPreviewBtn");
-    if(btn){
+    $$(".mode-btn").forEach(btn=>{
       btn.classList.toggle("preview-on", state.previewMode);
-      btn.title=state.previewMode ? "作業モードに戻る" : "プレビュー表示";
-      btn.setAttribute("aria-label", state.previewMode ? "作業モードに戻る" : "プレビューモードに切り替え");
-    }
+      const mode=state.previewMode ? "プレビュー" : "作業";
+      const next=state.previewMode ? "作業" : "プレビュー";
+      btn.querySelector(".mode-label").textContent=mode;
+      btn.title=`現在：${mode}モード。クリックで${next}`;
+      btn.setAttribute("aria-label", `現在：${mode}モード。${next}に切り替え`);
+      btn.setAttribute("aria-pressed", String(state.previewMode));
+    });
 
     if(state.previewMode){
       // Finish active text editing and remove selection indicators.
@@ -1214,6 +1289,7 @@
 
 
   function enterTextEditMode(el,it,clientX=null,clientY=null){
+    if(state.previewMode) return;
     if(!el || !it || it.type!=="text") return;
     const content=el.querySelector(".text-content");
     if(!content) return;
@@ -1321,6 +1397,7 @@
 
     const handle=el.querySelector(".handle");
     handle.addEventListener("pointerdown",ev=>{
+      if(state.previewMode) return;
       ev.stopPropagation(); ev.preventDefault();
       if(!state.selected.has(it.id)){state.selected.clear();state.selected.add(it.id);applySelectionClasses();}
       const p=screenToPageMM(ev.clientX,ev.clientY);
@@ -1359,6 +1436,7 @@
       const cells=[...el.querySelectorAll(".table-cell")];
       cells.forEach(cell=>{
         cell.addEventListener("dblclick",ev=>{
+          if(state.previewMode) return;
           ev.stopPropagation();
           const idx=+cell.dataset.cellIndex;
           cell.contentEditable="true";
@@ -1380,6 +1458,7 @@
 
     if(it.type==="image"){
       el.addEventListener("dblclick",()=>{
+        if(state.previewMode) return;
         $("#imageFile").dataset.target=it.id;
         $("#imageFile").click();
       });
@@ -1977,6 +2056,7 @@
 
   $("#mMenuBtn")?.addEventListener("click",toggleMobileMenu);
   $("#mPreviewBtn")?.addEventListener("click",togglePreviewMode);
+  $("#desktopPreviewBtn")?.addEventListener("click",togglePreviewMode);
   $("#mMenuCloseBtn")?.addEventListener("click",closeSheets);
   $("#mMenuNewBtn")?.addEventListener("click",()=>{ closeSheets(); $("#newBtn").click(); });
   $("#mMenuOpenBtn")?.addEventListener("click",()=>{ closeSheets(); $("#openBtn").click(); });
@@ -2017,6 +2097,7 @@
   rebuildAnchors();
   rebuildMobileAnchors();
   render();
+  setPreviewMode(false);
 })();
 </script>
 </body>
