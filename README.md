@@ -14,4 +14,8 @@
 
 Simple Typesetter Mobile v0.12
 
-公開版は `index.html` をGitHub Pagesで表示します。
+- 最新版: `index.html`
+- 移行時点の保存版: `prototypes/v0.12.html`
+- GitHub Pages公開予定: https://toppamono.github.io/SimpleTypesetter/
+
+GitHub Pagesを有効化した後は、上記URLをスマートフォンで開けば常に最新版を確認できます。
