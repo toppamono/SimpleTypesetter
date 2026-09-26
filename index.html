@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.6</title>
+<title>Simple Typesetter Mobile v0.12.7</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -197,6 +197,15 @@
   .mobile-format{display:none}
   .format-context{display:flex;align-items:center;gap:5px;min-width:0}
   .format-context.hidden{display:none!important}
+  .text-format-toggle{
+    flex:0 0 32px;width:32px;height:32px;padding:0;
+    display:grid;place-items:center;
+    border:1px solid #999;border-radius:3px;background:#fafafa;
+    font-size:16px;font-weight:700;line-height:1;
+  }
+  .text-format-pane{display:flex;align-items:center;gap:5px;min-width:0}
+  .text-format-pane.hidden{display:none!important}
+  .text-format-empty{min-width:1px;height:1px}
   .fit-content-icon{
     width:22px;height:22px;display:block;fill:none;stroke:currentColor;
     stroke-width:1.5;stroke-linecap:square;stroke-linejoin:miter;
@@ -787,21 +796,30 @@
       </button>
     </div>
     <div class="format-context hidden" id="mTextFormat">
-      <select id="mFontSelect" class="m-font" title="フォント">
-        <option value='"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif'>ゴシック（標準）</option>
-        <option value='"BIZ UDPGothic","UD Digi Kyokasho N-R","Yu Gothic","Noto Sans CJK JP",sans-serif'>UDゴシック</option>
-        <option value='"Meiryo","Hiragino Kaku Gothic ProN","Noto Sans CJK JP",sans-serif'>メイリオ系</option>
-        <option value='"Yu Mincho","Hiragino Mincho ProN","Noto Serif CJK JP","Noto Serif JP",serif'>明朝（標準）</option>
-        <option value='"BIZ UDPMincho","Yu Mincho","Noto Serif CJK JP",serif'>UD明朝</option>
-        <option value='"MS Gothic","Osaka-Mono","Noto Sans Mono CJK JP",monospace'>等幅ゴシック</option>
-        <option value='sans-serif'>Sans serif</option>
-        <option value='serif'>Serif</option>
-        <option value='monospace'>Monospace</option>
-      </select>
-      <input id="mFontSizeInput" class="m-size" type="number" step="0.5" value="12" title="文字サイズ(pt)">
-      <span style="font-size:11px">pt</span>
-      <input id="mLineHeightInput" class="m-line" type="number" step="0.1" value="1.5" title="行送り倍率">
-      <button id="mRubyBtn" title="選択文字にルビ">ルビ</button>
+      <button class="text-format-toggle" id="mTextFormatToggle" type="button"
+        title="段組み設定へ切り替え" aria-label="段組み設定へ切り替え">段</button>
+
+      <div class="text-format-pane" id="mCharacterFormatPane">
+        <select id="mFontSelect" class="m-font" title="フォント">
+          <option value='"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif'>ゴシック（標準）</option>
+          <option value='"BIZ UDPGothic","UD Digi Kyokasho N-R","Yu Gothic","Noto Sans CJK JP",sans-serif'>UDゴシック</option>
+          <option value='"Meiryo","Hiragino Kaku Gothic ProN","Noto Sans CJK JP",sans-serif'>メイリオ系</option>
+          <option value='"Yu Mincho","Hiragino Mincho ProN","Noto Serif CJK JP","Noto Serif JP",serif'>明朝（標準）</option>
+          <option value='"BIZ UDPMincho","Yu Mincho","Noto Serif CJK JP",serif'>UD明朝</option>
+          <option value='"MS Gothic","Osaka-Mono","Noto Sans Mono CJK JP",monospace'>等幅ゴシック</option>
+          <option value='sans-serif'>Sans serif</option>
+          <option value='serif'>Serif</option>
+          <option value='monospace'>Monospace</option>
+        </select>
+        <input id="mFontSizeInput" class="m-size" type="number" step="0.5" value="12" title="文字サイズ(pt)">
+        <span style="font-size:11px">pt</span>
+        <input id="mLineHeightInput" class="m-line" type="number" step="0.1" value="1.5" title="行送り倍率">
+        <button id="mRubyBtn" title="選択文字にルビ">ルビ</button>
+      </div>
+
+      <div class="text-format-pane hidden" id="mParagraphFormatPane" aria-label="段組み設定">
+        <span class="text-format-empty" aria-hidden="true"></span>
+      </div>
     </div>
   </div>
 
@@ -1024,7 +1042,8 @@
     drag:null,
     resize:null,
     editItem:null,
-    previewMode:false
+    previewMode:false,
+    textFormatMode:"character"
   };
 
 
@@ -1109,6 +1128,24 @@
     });
   }
 
+  function setTextFormatMode(mode){
+    state.textFormatMode=mode==="paragraph" ? "paragraph" : "character";
+    const charPane=$("#mCharacterFormatPane");
+    const paraPane=$("#mParagraphFormatPane");
+    const toggle=$("#mTextFormatToggle");
+    if(!charPane || !paraPane || !toggle) return;
+
+    const paragraphMode=state.textFormatMode==="paragraph";
+    charPane.classList.toggle("hidden", paragraphMode);
+    paraPane.classList.toggle("hidden", !paragraphMode);
+
+    // The glyph names the view you can switch to next.
+    toggle.textContent=paragraphMode ? "字" : "段";
+    toggle.title=paragraphMode ? "文字設定へ切り替え" : "段組み設定へ切り替え";
+    toggle.setAttribute("aria-label", toggle.title);
+    toggle.setAttribute("aria-pressed", String(paragraphMode));
+  }
+
   function updateMobileFormatContext(tool){
     const selectFormat=$("#mSelectFormat");
     const textFormat=$("#mTextFormat");
@@ -1116,7 +1153,12 @@
     const textMode=tool==="text";
     selectFormat.classList.toggle("hidden", textMode);
     textFormat.classList.toggle("hidden", !textMode);
+    if(textMode && state.textFormatMode!=="paragraph") setTextFormatMode("character");
   }
+
+  $("#mTextFormatToggle")?.addEventListener("click",()=>{
+    setTextFormatMode(state.textFormatMode==="character" ? "paragraph" : "character");
+  });
 
   function updateMobileDocLabel(){
     const lab=$("#mobileDocLabel");
@@ -2399,6 +2441,7 @@
 
   rebuildAnchors();
   rebuildMobileAnchors();
+  setTextFormatMode("character");
   updateMobileFormatContext(state.tool);
   render();
   setPreviewMode(false);
