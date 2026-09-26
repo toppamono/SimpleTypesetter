@@ -1877,19 +1877,45 @@
     }
     try{
       if(columns===1){
-        const fullHeight=probe.getBoundingClientRect().height;
-        let fittedWidth=it.w;
-        // Only a single composing line can safely lose its right-hand whitespace.
-        // Multiline frames retain their width, explicit returns, and soft wraps.
-        if(fullHeight-paddingY<=lineHeight+.1){
-          const rects=layout();
-          const right=Math.max(0,...rects.map(r=>r.right));
-          const proposed=Math.min(width,Math.max(paddingX,right+parseFloat(cs.paddingRight)+.05));
-          probe.style.width=`${proposed}px`;
-          if(probe.getBoundingClientRect().height<=fullHeight+.1) fittedWidth=ceilMm(proposed+borderX);
-          else probe.style.width=`${width}px`;
+        const originalLayout=layout();
+        const rightPad=parseFloat(cs.paddingRight)||0;
+        const right=Math.max(0,...originalLayout.map(r=>r.right));
+
+        // Fit the right edge to the actual right-most glyph on every line.
+        // For multiline text, never allow the fitting operation to introduce a
+        // new soft wrap: find the narrowest width that preserves the current
+        // line composition, including explicit returns and blank lines.
+        const target=Math.min(width,Math.max(paddingX,right+rightPad+.25));
+        const sameComposition=rects=>
+          rects.length===originalLayout.length &&
+          rects.every((r,i)=>
+            Math.abs(r.left-originalLayout[i].left)<.25 &&
+            Math.abs(r.top-originalLayout[i].top)<.25
+          );
+
+        let fittedPx=width;
+        if(target<width-.05){
+          probe.style.width=`${target}px`;
+          if(sameComposition(layout())){
+            fittedPx=target;
+          }else{
+            let low=target,high=width;
+            // The original width is known to preserve the original composition.
+            for(let n=0;n<24 && high-low>.01;n++){
+              const mid=(low+high)/2;
+              probe.style.width=`${mid}px`;
+              if(sameComposition(layout())) high=mid;
+              else low=mid;
+            }
+            fittedPx=high;
+          }
         }
-        return {w:fittedWidth,h:ceilMm(probe.getBoundingClientRect().height+borderY)};
+
+        probe.style.width=`${fittedPx}px`;
+        return {
+          w:ceilMm(fittedPx+borderX),
+          h:ceilMm(probe.getBoundingClientRect().height+borderY)
+        };
       }
       // Columns: keep the column width and, when already fitting, the existing
       // column breaks. Find the smallest safe height, not the last column's tail.
