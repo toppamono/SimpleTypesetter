@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.7</title>
+<title>Simple Typesetter Mobile v0.12.8</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -139,6 +139,8 @@
     .canvas-wrap{
       position:absolute;inset:0;overflow:auto;background:#bdbdbd;
       -webkit-overflow-scrolling:touch;
+      touch-action:none;
+      overscroll-behavior:none;
     }
     #canvasHost{margin:12px auto 26px}
     #page{touch-action:none}
@@ -1049,6 +1051,23 @@
 
   const isMobileUI = () => window.matchMedia("(max-width: 900px)").matches;
 
+  const gesture={
+    mode:null,
+    startDistance:0,
+    startZoom:1,
+    panStartX:0,
+    panStartY:0,
+    panScrollLeft:0,
+    panScrollTop:0,
+    threeStartTime:0,
+    threeStartX:0,
+    threeStartY:0,
+    threeMoved:false,
+    lastThreeTapTime:0,
+    lastThreeTapX:0,
+    lastThreeTapY:0
+  };
+
   function closeSheets(){
     $("#pagesPanel")?.classList.remove("sheet-open");
     $("#inspectorPanel")?.classList.remove("sheet-open");
@@ -1201,6 +1220,61 @@
     const zs=$("#zoomSelect");
     if(zs) zs.value=String(Math.round(state.zoom*100));
     setPageSize(...state.doc.pageSize);
+  }
+
+  function resetMobileFullView(){
+    if(!isMobileUI()) return;
+    fitMobilePage();
+    requestAnimationFrame(()=>{
+      const wrap=$("#canvasWrap");
+      if(wrap) wrap.scrollTo({left:0,top:0,behavior:"auto"});
+    });
+    setStatus("全体表示");
+  }
+
+  function touchCenter(touches){
+    const arr=[...touches];
+    if(!arr.length) return {x:0,y:0};
+    return {
+      x:arr.reduce((sum,t)=>sum+t.clientX,0)/arr.length,
+      y:arr.reduce((sum,t)=>sum+t.clientY,0)/arr.length
+    };
+  }
+
+  function touchDistance(touches){
+    if(touches.length<2) return 0;
+    const a=touches[0],b=touches[1];
+    return Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);
+  }
+
+  function cancelObjectGestureForMultitouch(){
+    state.drag=null;
+    state.resize=null;
+    if(state.drawing){
+      state.drawing=null;
+      $("#drawGhost")?.remove();
+    }
+  }
+
+  function zoomMobileAround(clientX,clientY,newZoom){
+    const wrap=$("#canvasWrap");
+    if(!wrap) return;
+    const prevZoom=state.zoom||1;
+    const before=pageEl.getBoundingClientRect();
+    const localX=(clientX-before.left)/prevZoom;
+    const localY=(clientY-before.top)/prevZoom;
+
+    state.zoom=Math.max(.15,Math.min(5,newZoom));
+    setPageSize(...state.doc.pageSize);
+
+    const after=pageEl.getBoundingClientRect();
+    const afterX=after.left+localX*state.zoom;
+    const afterY=after.top+localY*state.zoom;
+    wrap.scrollLeft+=afterX-clientX;
+    wrap.scrollTop+=afterY-clientY;
+
+    const zs=$("#zoomSelect");
+    if(zs) zs.value=String(Math.round(state.zoom*100));
   }
 
 
@@ -2397,7 +2471,7 @@
   $("#mOpenBtn")?.addEventListener("click",()=>$("#openBtn").click());
   $("#mSaveBtn")?.addEventListener("click",()=>$("#saveBtn").click());
   $("#mPrintBtn")?.addEventListener("click",()=>$("#printBtn").click());
-  $("#mFitBtn")?.addEventListener("click",()=>fitMobilePage());
+  $("#mFitBtn")?.addEventListener("click",()=>resetMobileFullView());
 
   $("#mMenuBtn")?.addEventListener("click",toggleMobileMenu);
   $("#mPreviewBtn")?.addEventListener("click",togglePreviewMode);
@@ -2407,7 +2481,7 @@
   $("#mMenuOpenBtn")?.addEventListener("click",()=>{ closeSheets(); $("#openBtn").click(); });
   $("#mMenuSaveBtn")?.addEventListener("click",()=>{ closeSheets(); $("#saveBtn").click(); });
   $("#mMenuPrintBtn")?.addEventListener("click",()=>{ closeSheets(); $("#printBtn").click(); });
-  $("#mMenuFitBtn")?.addEventListener("click",()=>{ closeSheets(); fitMobilePage(); });
+  $("#mMenuFitBtn")?.addEventListener("click",()=>{ closeSheets(); resetMobileFullView(); });
   $("#mMenuPagesBtn")?.addEventListener("click",()=>{ closeSheets(); openSheet("pages"); });
 
   document.querySelectorAll("[data-mobile-tool]").forEach(b=>{
@@ -2427,6 +2501,116 @@
   $("#canvasWrap")?.addEventListener("pointerdown",e=>{
     if(isMobileUI() && (e.target===$("#canvasWrap") || e.target===pageEl)) closeSheets();
   }, {passive:true});
+
+  const canvasWrap=$("#canvasWrap");
+
+  canvasWrap?.addEventListener("touchstart",e=>{
+    if(!isMobileUI()) return;
+    const n=e.touches.length;
+    if(n<2) return;
+
+    e.preventDefault();
+    closeSheets();
+    cancelObjectGestureForMultitouch();
+
+    if(n>=3){
+      const c=touchCenter(e.touches);
+      gesture.mode="pan3";
+      gesture.panStartX=c.x;
+      gesture.panStartY=c.y;
+      gesture.panScrollLeft=canvasWrap.scrollLeft;
+      gesture.panScrollTop=canvasWrap.scrollTop;
+      gesture.threeStartTime=performance.now();
+      gesture.threeStartX=c.x;
+      gesture.threeStartY=c.y;
+      gesture.threeMoved=false;
+      setStatus("3本指で移動");
+      return;
+    }
+
+    const c=touchCenter(e.touches);
+    gesture.mode="pinch2";
+    gesture.startDistance=Math.max(1,touchDistance(e.touches));
+    gesture.startZoom=state.zoom||1;
+    gesture.pinchCenterX=c.x;
+    gesture.pinchCenterY=c.y;
+    setStatus("2本指で拡大・縮小");
+  },{passive:false,capture:true});
+
+  canvasWrap?.addEventListener("touchmove",e=>{
+    if(!isMobileUI() || !gesture.mode) return;
+    e.preventDefault();
+
+    if(gesture.mode==="pan3"){
+      if(e.touches.length<3) return;
+      const c=touchCenter(e.touches);
+      const dx=c.x-gesture.panStartX;
+      const dy=c.y-gesture.panStartY;
+      if(Math.hypot(c.x-gesture.threeStartX,c.y-gesture.threeStartY)>12) gesture.threeMoved=true;
+      canvasWrap.scrollLeft=gesture.panScrollLeft-dx;
+      canvasWrap.scrollTop=gesture.panScrollTop-dy;
+      return;
+    }
+
+    if(gesture.mode==="pinch2"){
+      if(e.touches.length>=3){
+        const c=touchCenter(e.touches);
+        gesture.mode="pan3";
+        gesture.panStartX=c.x;
+        gesture.panStartY=c.y;
+        gesture.panScrollLeft=canvasWrap.scrollLeft;
+        gesture.panScrollTop=canvasWrap.scrollTop;
+        gesture.threeStartTime=performance.now();
+        gesture.threeStartX=c.x;
+        gesture.threeStartY=c.y;
+        gesture.threeMoved=false;
+        return;
+      }
+      if(e.touches.length!==2) return;
+      const d=Math.max(1,touchDistance(e.touches));
+      const c=touchCenter(e.touches);
+      const next=gesture.startZoom*(d/gesture.startDistance);
+      zoomMobileAround(c.x,c.y,next);
+    }
+  },{passive:false,capture:true});
+
+  canvasWrap?.addEventListener("touchend",e=>{
+    if(!isMobileUI() || !gesture.mode) return;
+    e.preventDefault();
+
+    if(e.touches.length>0) return;
+
+    if(gesture.mode==="pan3"){
+      const now=performance.now();
+      const duration=now-gesture.threeStartTime;
+      const isTap=!gesture.threeMoved && duration<360;
+      if(isTap){
+        const nearPrevious=
+          now-gesture.lastThreeTapTime<420 &&
+          Math.hypot(
+            gesture.threeStartX-gesture.lastThreeTapX,
+            gesture.threeStartY-gesture.lastThreeTapY
+          )<55;
+        if(nearPrevious){
+          gesture.lastThreeTapTime=0;
+          resetMobileFullView();
+        }else{
+          gesture.lastThreeTapTime=now;
+          gesture.lastThreeTapX=gesture.threeStartX;
+          gesture.lastThreeTapY=gesture.threeStartY;
+        }
+      }
+    }
+
+    gesture.mode=null;
+  },{passive:false,capture:true});
+
+  canvasWrap?.addEventListener("touchcancel",e=>{
+    if(!isMobileUI()) return;
+    gesture.mode=null;
+    cancelObjectGestureForMultitouch();
+  },{passive:false,capture:true});
+
 
   window.addEventListener("resize",()=>{
     updateOrientationHint();
