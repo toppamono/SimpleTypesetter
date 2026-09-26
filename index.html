@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.14</title>
+<title>Simple Typesetter Mobile v0.12.15</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -731,6 +731,165 @@
     #page [contenteditable]{background:transparent!important}
   }
 </style>
+
+<style id="mobileTypeFlatStyle">
+  /* Word-inspired flat character toolbar */
+  @media (max-width:900px){
+    #mTextFormat{
+      gap:2px!important;
+      min-width:0;
+    }
+    #mTextFormatToggle{
+      flex:0 0 22px!important;
+      width:22px!important;
+      min-width:22px!important;
+      height:30px!important;
+      padding:0!important;
+      border:0!important;
+      border-radius:2px!important;
+      background:transparent!important;
+      font-family:Arial,"Yu Gothic",sans-serif!important;
+      font-size:13px!important;
+      font-weight:500!important;
+      line-height:30px!important;
+    }
+    #mTextFormatToggle:hover,
+    #mTextFormatToggle:active{
+      background:#e6e6e6!important;
+    }
+
+    #mCharacterFormatPane{
+      gap:2px!important;
+      min-width:0;
+      height:30px;
+    }
+
+    #mCharacterFormatPane .m-font{
+      width:80px!important;
+      min-width:80px!important;
+      max-width:80px!important;
+      height:30px!important;
+      padding:0 18px 0 5px!important;
+      border:1px solid #c8c8c8!important;
+      border-radius:2px!important;
+      background:#fff!important;
+      font-family:Arial,"Yu Gothic",sans-serif!important;
+      font-size:12px!important;
+      line-height:28px!important;
+      text-overflow:clip!important;
+      overflow:hidden!important;
+      white-space:nowrap!important;
+    }
+
+    #mCharacterFormatPane .m-unit-input{
+      position:relative;
+      flex:0 0 43px;
+      width:43px;
+      height:30px;
+    }
+    #mCharacterFormatPane .m-unit-input input{
+      box-sizing:border-box!important;
+      width:43px!important;
+      min-width:43px!important;
+      height:30px!important;
+      padding:0 3px!important;
+      border:1px solid #c8c8c8!important;
+      border-radius:2px!important;
+      background:#fff!important;
+      font-family:Arial,"Yu Gothic",sans-serif!important;
+      font-size:12px!important;
+      line-height:28px!important;
+      text-align:center!important;
+      -moz-appearance:textfield;
+    }
+    #mCharacterFormatPane .m-unit-input input::-webkit-outer-spin-button,
+    #mCharacterFormatPane .m-unit-input input::-webkit-inner-spin-button{
+      -webkit-appearance:none;
+      margin:0;
+    }
+
+    #mCharacterFormatPane .m-type-icon{
+      box-sizing:border-box!important;
+      width:27px!important;
+      min-width:27px!important;
+      height:30px!important;
+      padding:0!important;
+      border:0!important;
+      border-radius:2px!important;
+      background:transparent!important;
+      color:#2b2b2b!important;
+      font-family:Arial,Helvetica,sans-serif!important;
+      font-size:16px!important;
+      font-weight:400!important;
+      line-height:30px!important;
+      display:grid!important;
+      place-items:center!important;
+    }
+    #mCharacterFormatPane .m-type-icon:hover{
+      background:#e7e7e7!important;
+    }
+    #mCharacterFormatPane .m-type-icon.active{
+      background:#d8e7f7!important;
+      box-shadow:none!important;
+    }
+    #mCharacterFormatPane .m-bold-icon{
+      font-weight:700!important;
+    }
+    #mCharacterFormatPane .m-underline-icon{
+      text-decoration:underline!important;
+      text-decoration-thickness:1px!important;
+      text-underline-offset:2px!important;
+    }
+    #mCharacterFormatPane .m-color-icon{
+      position:relative;
+      padding-bottom:3px!important;
+    }
+    #mCharacterFormatPane .m-color-icon::after{
+      content:"";
+      position:absolute;
+      left:6px;right:6px;bottom:3px;
+      height:2px;
+      background:var(--text-color,#111);
+    }
+    #mCharacterFormatPane .m-more-icon{
+      font-size:19px!important;
+      font-weight:400!important;
+      padding-bottom:5px!important;
+    }
+
+    .mobile-format{
+      gap:2px!important;
+      padding-left:4px!important;
+      padding-right:4px!important;
+    }
+
+    .m-more-menu{
+      display:none;
+      position:fixed;
+      right:6px;
+      top:var(--top-total);
+      z-index:20550;
+      min-width:150px;
+      padding:6px;
+      background:#f5f5f5;
+      border:1px solid #aaa;
+      border-radius:4px;
+      box-shadow:0 4px 14px #0003;
+    }
+    .m-more-menu.open{display:grid;gap:4px}
+    .m-more-menu button{
+      height:34px;
+      border:0;
+      border-radius:2px;
+      background:transparent;
+      text-align:left;
+      padding:4px 8px;
+      font-size:13px;
+    }
+    .m-more-menu button:hover{background:#e7e7e7}
+    #mTextColorInput{position:fixed;left:-9999px;width:1px;height:1px;opacity:0}
+  }
+</style>
 </head>
 <body>
 <div id="app">
@@ -812,17 +971,15 @@
           <option value='monospace'>Monospace</option>
         </select>
         <div class="m-unit-input">
-          <input id="mFontSizeInput" class="m-size" type="number" step="1" min="1" value="17" title="文字サイズ（Q）" inputmode="decimal">
-          <span class="unit">Q</span>
+          <input id="mFontSizeInput" class="m-size" type="number" step="1" min="1" value="17" title="文字サイズ（Q）" aria-label="文字サイズ（Q）" inputmode="decimal">
         </div>
         <div class="m-unit-input">
-          <input id="mLineHeightInput" class="m-line" type="number" step="1" min="1" value="26" title="行送り（H）" inputmode="decimal">
-          <span class="unit">H</span>
+          <input id="mLineHeightInput" class="m-line" type="number" step="1" min="1" value="26" title="行送り（H）" aria-label="行送り（H）" inputmode="decimal">
         </div>
-        <button class="m-type-icon" id="mBoldBtn" type="button" title="太字" aria-label="太字">B</button>
-        <button class="m-type-icon underline" id="mUnderlineBtn" type="button" title="下線" aria-label="下線">U</button>
+        <button class="m-type-icon m-bold-icon" id="mBoldBtn" type="button" title="太字" aria-label="太字">B</button>
+        <button class="m-type-icon m-underline-icon" id="mUnderlineBtn" type="button" title="下線" aria-label="下線">U</button>
         <button class="m-type-icon m-color-icon" id="mColorBtn" type="button" title="文字色" aria-label="文字色" style="--text-color:#111111">A</button>
-        <button class="m-type-icon" id="mMoreTypeBtn" type="button" title="その他" aria-label="その他">…</button>
+        <button class="m-type-icon m-more-icon" id="mMoreTypeBtn" type="button" title="その他" aria-label="その他">⋯</button>
       </div>
 
       <div class="text-format-pane hidden" id="mParagraphFormatPane" aria-label="段組み設定">
@@ -2562,48 +2719,6 @@
     }).join("");
     printWin.document.write(`<!doctype html><meta charset="utf-8"><title>Print</title>
       <style>@page{size:${w}mm ${h}mm;margin:0}html,body{margin:0;padding:0}.sheet{position:relative;width:${w}mm;height:${h}mm;page-break-after:always;overflow:hidden}.sheet:last-child{page-break-after:auto}.ruby-base{position:relative;display:inline}.ruby-base::before{content:attr(data-ruby);position:absolute;left:50%;top:0;transform:translate(-50%,-100%);white-space:nowrap;line-height:1;font-size:.5em}
-  /* ===== v0.12.14 Japanese Q/H type controls ===== */
-  .text-format-pane{gap:3px!important}
-  .m-unit-input{position:relative;flex:0 0 auto}
-  .m-unit-input input{padding-right:15px!important;text-align:right!important}
-  .m-unit-input .unit{
-    position:absolute;right:4px;top:50%;transform:translateY(-50%);
-    font-size:10px;color:#555;pointer-events:none;
-  }
-  .m-type-icon{
-    width:29px!important;min-width:29px!important;padding:0!important;
-    display:grid!important;place-items:center;font-weight:700;font-size:15px!important;
-  }
-  .m-type-icon.underline{text-decoration:underline;text-underline-offset:2px}
-  .m-color-icon{position:relative}
-  .m-color-icon::after{
-    content:"";position:absolute;left:6px;right:6px;bottom:4px;height:3px;
-    background:var(--text-color,#111);
-  }
-  .m-more-menu{
-    display:none;position:fixed;right:6px;top:var(--top-total);
-    z-index:20550;min-width:150px;padding:6px;background:#f5f5f5;
-    border:1px solid #999;border-radius:6px;box-shadow:0 4px 14px #0003;
-  }
-  .m-more-menu.open{display:grid;gap:5px}
-  .m-more-menu button{
-    height:36px;text-align:left;padding:4px 10px;border:1px solid #aaa;
-    border-radius:5px;background:white;font-size:13px;
-  }
-  #mTextColorInput{position:fixed;left:-9999px;width:1px;height:1px;opacity:0}
-  @media(max-width:900px){
-    .mobile-format{gap:3px!important;padding-left:4px!important;padding-right:4px!important}
-    .mobile-format .m-font{
-      width:82px!important;min-width:82px!important;max-width:82px!important;
-      text-overflow:ellipsis;
-    }
-    .mobile-format .m-size{width:48px!important}
-    .mobile-format .m-line{width:48px!important}
-    .mobile-format button.active{
-      background:#d6e5f7!important;border-color:#648bb8!important;
-      box-shadow:inset 0 1px 2px #0002;
-    }
-  }
 </style>
       ${pagesHtml}<script>onload=()=>setTimeout(()=>print(),250)<\/script>`);
     printWin.document.close();
