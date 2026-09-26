@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.16</title>
+<title>Simple Typesetter Mobile v0.12.17</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -888,6 +888,95 @@
     }
     .m-more-menu button:hover{background:#e7e7e7}
     #mTextColorInput{position:fixed;left:-9999px;width:1px;height:1px;opacity:0}
+  }
+</style>
+
+<style id="unifiedFlatToolbarStyle">
+  @media (max-width:900px){
+    /* One visual language for both toolbar rows */
+    .mobile-transform,
+    .mobile-format{
+      background:#f6f6f6!important;
+      border-color:#cfcfcf!important;
+      box-shadow:none!important;
+    }
+
+    /* First row: Word-like flat buttons */
+    .mobile-transform .m-btn{
+      border:0!important;
+      border-radius:2px!important;
+      background:transparent!important;
+      box-shadow:none!important;
+      color:#2b2b2b!important;
+    }
+    .mobile-transform .m-btn:hover,
+    .mobile-transform .m-btn:active{
+      background:#e7e7e7!important;
+    }
+    .mobile-transform .m-btn.active{
+      background:#d8e7f7!important;
+      box-shadow:none!important;
+    }
+
+    .mobile-transform .m-anchor-grid{
+      border:0!important;
+      border-radius:2px!important;
+      background:transparent!important;
+      padding:2px!important;
+      box-shadow:none!important;
+    }
+    .mobile-transform .m-anchor{
+      border:1px solid #8a8a8a!important;
+      background:#fff!important;
+      border-radius:1px!important;
+    }
+    .mobile-transform .m-anchor.active{
+      background:#2d67a7!important;
+      border-color:#2d67a7!important;
+    }
+
+    .mobile-transform .m-field{
+      gap:2px!important;
+      color:#333!important;
+    }
+    .mobile-transform .m-field .label{
+      font-family:Arial,"Yu Gothic",sans-serif!important;
+      font-size:11px!important;
+      font-weight:500!important;
+    }
+    .mobile-transform .m-field input{
+      height:30px!important;
+      border:1px solid #c8c8c8!important;
+      border-radius:2px!important;
+      background:#fff!important;
+      box-shadow:none!important;
+      font-family:Arial,"Yu Gothic",sans-serif!important;
+      font-size:12px!important;
+      text-align:center!important;
+    }
+
+    .mobile-transform .m-menu-lines i{background:#2b2b2b!important}
+    .mobile-transform .m-cursor-icon{fill:#2b2b2b!important}
+    .mobile-transform .work-icon,
+    .mobile-transform .preview-icon{
+      stroke:#2b2b2b!important;
+    }
+
+    /* Second row numeric fields: just enough room for three digits */
+    #mCharacterFormatPane .m-unit-input{
+      flex:0 0 36px!important;
+      width:36px!important;
+      height:30px!important;
+    }
+    #mCharacterFormatPane .m-unit-input input{
+      width:36px!important;
+      min-width:36px!important;
+      max-width:36px!important;
+      height:30px!important;
+      padding:0 2px!important;
+      font-size:12px!important;
+      text-align:center!important;
+    }
   }
 </style>
 </head>
@@ -2389,6 +2478,7 @@
     $("#mColorBtn").style.setProperty("--text-color",color);
     $("#mTextColorInput").value=/^#[0-9a-f]{6}$/i.test(color)?color:"#111111";
     $("#mRubyBtn").disabled=it.type!=="text";
+    queueMicrotask(()=>updateInlineToggleState?.());
   }
 
   function refreshColumnWidth(it){
@@ -2508,14 +2598,43 @@
     return content.contains(range.commonAncestorContainer) ? {it,content,sel,range} : null;
   }
 
+  function updateInlineToggleState(){
+    const it=singleSelected();
+    const selected=selectionInsideCurrentText();
+
+    let boldOn=false, underlineOn=false;
+    if(selected){
+      try{
+        boldOn=document.queryCommandState("bold");
+        underlineOn=document.queryCommandState("underline");
+      }catch(_){}
+    }else if(it){
+      boldOn=(it.fontWeight||"400")==="700";
+      underlineOn=(it.textDecoration||"none").includes("underline");
+    }
+
+    const b=$("#mBoldBtn"),u=$("#mUnderlineBtn");
+    if(b){
+      b.classList.toggle("active",!!boldOn);
+      b.setAttribute("aria-pressed",String(!!boldOn));
+    }
+    if(u){
+      u.classList.toggle("active",!!underlineOn);
+      u.setAttribute("aria-pressed",String(!!underlineOn));
+    }
+  }
+
   function applyInlineOrFrameStyle(kind,value){
     const selected=selectionInsideCurrentText();
     const it=singleSelected();
     if(!it || !["text","table"].includes(it.type)) return;
 
     if(selected && document.queryCommandSupported?.(kind)){
+      // execCommand bold/underline are true toggles: first tap applies,
+      // second tap removes. Keeping focus on the editor preserves Android selection.
       document.execCommand(kind,false,value);
       selected.it.html=selected.content.innerHTML;
+      updateInlineToggleState();
       return;
     }
 
@@ -2530,8 +2649,13 @@
       target.style.color=it.color||"#111111";
     }
     syncMobileTypeControls(it);
+    updateInlineToggleState();
   }
 
+  // Prevent toolbar taps from collapsing a selected text range on Android.
+  ["mBoldBtn","mUnderlineBtn"].forEach(id=>{
+    $("#"+id)?.addEventListener("pointerdown",e=>e.preventDefault());
+  });
   $("#mBoldBtn").onclick=()=>applyInlineOrFrameStyle("bold");
   $("#mUnderlineBtn").onclick=()=>applyInlineOrFrameStyle("underline");
   $("#mColorBtn").onclick=()=>$("#mTextColorInput").click();
