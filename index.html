@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.11</title>
+<title>Simple Typesetter Mobile v0.12.12</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -1050,8 +1050,9 @@
 
   const gesture={
     mode:null,
-    startDistance:0,
-    startZoom:1
+    lastDistance:0,
+    lastCenterX:0,
+    lastCenterY:0
   };
 
   function closeSheets(){
@@ -2497,20 +2498,37 @@
     closeSheets();
     cancelObjectGestureForMultitouch();
 
+    const c=touchCenter(e.touches);
     gesture.mode="pinch2";
-    gesture.startDistance=Math.max(1,touchDistance(e.touches));
-    gesture.startZoom=state.zoom||1;
-    setStatus("2本指で拡大・縮小");
+    gesture.lastDistance=Math.max(1,touchDistance(e.touches));
+    gesture.lastCenterX=c.x;
+    gesture.lastCenterY=c.y;
+    setStatus("2本指で拡大・縮小・移動");
   },{passive:false,capture:true});
 
   canvasWrap?.addEventListener("touchmove",e=>{
     if(!isMobileUI() || gesture.mode!=="pinch2" || e.touches.length!==2) return;
     e.preventDefault();
 
-    const d=Math.max(1,touchDistance(e.touches));
     const c=touchCenter(e.touches);
-    const next=gesture.startZoom*(d/gesture.startDistance);
-    zoomMobileAround(c.x,c.y,next);
+    const d=Math.max(1,touchDistance(e.touches));
+
+    // Two-finger translation: move the canvas by the movement of the midpoint.
+    const dx=c.x-gesture.lastCenterX;
+    const dy=c.y-gesture.lastCenterY;
+    canvasWrap.scrollLeft-=dx;
+    canvasWrap.scrollTop-=dy;
+
+    // Two-finger scale: zoom by the change in finger spacing, around the
+    // current midpoint so panning and zooming can happen at the same time.
+    const ratio=d/Math.max(1,gesture.lastDistance);
+    if(Math.abs(ratio-1)>.001){
+      zoomMobileAround(c.x,c.y,(state.zoom||1)*ratio);
+    }
+
+    gesture.lastDistance=d;
+    gesture.lastCenterX=c.x;
+    gesture.lastCenterY=c.y;
   },{passive:false,capture:true});
 
   canvasWrap?.addEventListener("touchend",e=>{
