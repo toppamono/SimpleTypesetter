@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.17</title>
+<title>Simple Typesetter Mobile v0.12.18</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -2624,6 +2624,59 @@
     }
   }
 
+  let pendingColorSelection=null;
+
+  function rememberColorSelection(){
+    pendingColorSelection=null;
+    const selected=selectionInsideCurrentText();
+    if(!selected) return;
+
+    try{
+      pendingColorSelection={
+        itemId:selected.it.id,
+        range:selected.range.cloneRange()
+      };
+    }catch(_){
+      pendingColorSelection=null;
+    }
+  }
+
+  function applyPickedTextColor(value){
+    const color=value||"#111111";
+
+    // Android color pickers may temporarily clear the DOM selection.
+    // Restore the range captured before opening the picker.
+    if(pendingColorSelection){
+      const it=getItem(pendingColorSelection.itemId);
+      const content=pageEl.querySelector(`.obj[data-id="${pendingColorSelection.itemId}"] .text-content`);
+      if(it && content){
+        try{
+          content.focus({preventScroll:true});
+          const sel=window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(pendingColorSelection.range.cloneRange());
+
+          if(typeof document.execCommand==="function"){
+            document.execCommand("foreColor",false,color);
+            it.html=content.innerHTML;
+            $("#mColorBtn")?.style.setProperty("--text-color",color);
+            $("#mTextColorInput").value=color;
+            pendingColorSelection={
+              itemId:it.id,
+              range:sel.rangeCount ? sel.getRangeAt(0).cloneRange() : pendingColorSelection.range
+            };
+            return;
+          }
+        }catch(_){}
+      }
+    }
+
+    // No text range: apply the color to the selected text frame/table.
+    applyInlineOrFrameStyle("foreColor",color);
+    $("#mColorBtn")?.style.setProperty("--text-color",color);
+    $("#mTextColorInput").value=color;
+  }
+
   function applyInlineOrFrameStyle(kind,value){
     const selected=selectionInsideCurrentText();
     const it=singleSelected();
@@ -2634,6 +2687,10 @@
       // second tap removes. Keeping focus on the editor preserves Android selection.
       document.execCommand(kind,false,value);
       selected.it.html=selected.content.innerHTML;
+      if(kind==="foreColor" && value){
+        $("#mColorBtn")?.style.setProperty("--text-color",value);
+        $("#mTextColorInput").value=value;
+      }
       updateInlineToggleState();
       return;
     }
@@ -2658,8 +2715,18 @@
   });
   $("#mBoldBtn").onclick=()=>applyInlineOrFrameStyle("bold");
   $("#mUnderlineBtn").onclick=()=>applyInlineOrFrameStyle("underline");
-  $("#mColorBtn").onclick=()=>$("#mTextColorInput").click();
-  $("#mTextColorInput").oninput=e=>applyInlineOrFrameStyle("foreColor",e.target.value);
+  $("#mColorBtn")?.addEventListener("pointerdown",e=>{
+    // Keep the current text range alive while the native Android color picker opens.
+    e.preventDefault();
+    rememberColorSelection();
+  });
+  $("#mColorBtn").onclick=()=>{
+    rememberColorSelection();
+    $("#mTextColorInput").click();
+  };
+  const handleTextColorPick=e=>applyPickedTextColor(e.target.value);
+  $("#mTextColorInput").oninput=handleTextColorPick;
+  $("#mTextColorInput").onchange=handleTextColorPick;
 
   $("#mMoreTypeBtn").onclick=e=>{
     e.stopPropagation();
