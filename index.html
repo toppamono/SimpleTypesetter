@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simple Typesetter Mobile v0.12.18</title>
+<title>Simple Typesetter Mobile v0.12.19</title>
 <style>
   :root{
     --ui:#ececec; --ui2:#f7f7f7; --line:#b9b9b9; --ink:#222;
@@ -1049,8 +1049,9 @@
 
       <div class="text-format-pane" id="mCharacterFormatPane">
         <select id="mFontSelect" class="m-font" title="フォント">
+          <option value='"UD Digi Kyokasho N-R","UD デジタル 教科書体 NK-R","Yu Gothic","Noto Sans CJK JP",sans-serif'>UD教科書体</option>
+          <option value='"BIZ UDPGothic","Yu Gothic","Noto Sans CJK JP",sans-serif'>UDゴシック</option>
           <option value='"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif'>ゴシック（標準）</option>
-          <option value='"BIZ UDPGothic","UD Digi Kyokasho N-R","Yu Gothic","Noto Sans CJK JP",sans-serif'>UDゴシック</option>
           <option value='"Meiryo","Hiragino Kaku Gothic ProN","Noto Sans CJK JP",sans-serif'>メイリオ系</option>
           <option value='"Yu Mincho","Hiragino Mincho ProN","Noto Serif CJK JP","Noto Serif JP",serif'>明朝（標準）</option>
           <option value='"BIZ UDPMincho","Yu Mincho","Noto Serif CJK JP",serif'>UD明朝</option>
@@ -1283,6 +1284,7 @@
   const $ = s => document.querySelector(s);
   const $$ = s => [...document.querySelectorAll(s)];
   const MM_TO_PX = 96/25.4;
+  const DEFAULT_FONT_FAMILY='"UD Digi Kyokasho N-R","UD デジタル 教科書体 NK-R","Yu Gothic","Noto Sans CJK JP",sans-serif';
 
   const state = {
     doc:{
@@ -1654,7 +1656,7 @@
     content.className="content "+(it.type==="text"?"text-content":it.type==="image"?"image-content":"");
     if(it.type==="text"){
       content.innerHTML=it.html || "";
-      content.style.fontFamily=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
+      content.style.fontFamily=it.fontFamily||DEFAULT_FONT_FAMILY;
       content.style.fontSize=fontSizeCss(it);
       content.style.lineHeight=lineHeightCss(it);
       content.style.fontWeight=it.fontWeight||"400";
@@ -1712,7 +1714,7 @@
   }
 
   function applyTextMetricsToTable(it, grid){
-    grid.style.fontFamily=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
+    grid.style.fontFamily=it.fontFamily||DEFAULT_FONT_FAMILY;
     grid.style.fontSize=fontSizeCss(it);
     grid.style.lineHeight=lineHeightCss(it);
     grid.style.fontWeight=it.fontWeight||"400";
@@ -1747,7 +1749,7 @@
       ov.textContent=reading;
       ov.style.left=`${((r.left+r.right)/2-objRect.left)/zoom}px`;
       ov.style.top=`${(r.top-objRect.top)/zoom}px`;
-      ov.style.fontFamily=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
+      ov.style.fontFamily=it.fontFamily||DEFAULT_FONT_FAMILY;
       ensureJapaneseMetrics(it);
       ov.style.fontSize=`${round(it.fontSizeQ*(it.rubyRatio??.5)*QH_TO_MM,4)}mm`;
       el.appendChild(ov);
@@ -2062,7 +2064,7 @@
       id:uid(),type,
       x:round(r.x,3),y:round(r.y,3),w:round(r.w,3),h:round(r.h,3),
       z:10,
-      fontFamily:'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif',
+      fontFamily:DEFAULT_FONT_FAMILY,
       fontSize:12,lineHeight:1.5,fontSizeQ:17,lineHeightH:26,rubyRatio:.5,
       fontWeight:"400",textDecoration:"none",color:"#111111",
       columnCount:1,columnGap:5,
@@ -2408,6 +2410,9 @@
     if(low.includes("mincho") || low.includes("明朝")){
       return '"Yu Mincho","Hiragino Mincho ProN","Noto Serif CJK JP","Noto Serif JP",serif';
     }
+    if(low.includes("kyokasho") || low.includes("教科書")){
+      return DEFAULT_FONT_FAMILY;
+    }
     if(low.includes("meiryo")){
       return '"Meiryo","Hiragino Kaku Gothic ProN","Noto Sans CJK JP",sans-serif';
     }
@@ -2437,7 +2442,7 @@
     if($("#mFitTextFrameBtn")) $("#mFitTextFrameBtn").disabled=!textOk;
 
     if(typeOk){
-      $("#fontSelect").value=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
+      $("#fontSelect").value=it.fontFamily||DEFAULT_FONT_FAMILY;
       $("#fontSizeInput").value=it.fontSize||12;
       $("#lineHeightInput").value=it.lineHeight||1.5;
       syncMobileTypeControls(it);
@@ -2469,7 +2474,7 @@
   function syncMobileTypeControls(it){
     disableMobileTypeControls(false);
     ensureJapaneseMetrics(it);
-    $("#mFontSelect").value=it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif';
+    $("#mFontSelect").value=it.fontFamily||DEFAULT_FONT_FAMILY;
     $("#mFontSizeInput").value=round(it.fontSizeQ,2);
     $("#mLineHeightInput").value=round(it.lineHeightH,2);
     $("#mBoldBtn").classList.toggle("active",(it.fontWeight||"400")==="700");
@@ -2897,12 +2902,12 @@
     const pagesHtml=state.doc.pages.map((p,idx)=>{
       const objs=p.items.map(it=>{
         const base=`position:absolute;left:${it.x}mm;top:${it.y}mm;width:${it.w}mm;height:${it.h}mm;box-sizing:border-box;`;
-        if(it.type==="text")return `<div class="print-text" style="${base}overflow:hidden;font-family:${cssEsc(it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif')};font-size:${it.fontSize||12}pt;line-height:${it.lineHeight||1.5};padding:${it.insetTop??0}mm ${it.insetRight??0}mm ${it.insetBottom??0}mm ${it.insetLeft??0}mm;white-space:pre-wrap;column-count:${Math.max(1,it.columnCount??1)};column-gap:${it.columnGap??5}mm;column-fill:auto;">${it.html||""}</div>`;
+        if(it.type==="text")return `<div class="print-text" style="${base}overflow:hidden;font-family:${cssEsc(it.fontFamily||DEFAULT_FONT_FAMILY)};font-size:${it.fontSize||12}pt;line-height:${it.lineHeight||1.5};padding:${it.insetTop??0}mm ${it.insetRight??0}mm ${it.insetBottom??0}mm ${it.insetLeft??0}mm;white-space:pre-wrap;column-count:${Math.max(1,it.columnCount??1)};column-gap:${it.columnGap??5}mm;column-fill:auto;">${it.html||""}</div>`;
         if(it.type==="image")return `<div style="${base}overflow:hidden">${it.src?`<img src="${it.src}" style="width:100%;height:100%;object-fit:cover">`:""}</div>`;
         if(it.type==="table"){
           normalizeTableCells(it);
           const cells=it.cells.map(c=>`<div style="overflow:hidden;border:${(it.borderWidth??0.2)/2}mm solid #222;padding:${it.cellPadding??1}mm;box-sizing:border-box">${c||""}</div>`).join("");
-          return `<div style="${base}display:grid;grid-template-columns:repeat(${it.cols||3},1fr);grid-template-rows:repeat(${it.rows||3},1fr);font-family:${cssEsc(it.fontFamily||'"Yu Gothic","Yu Gothic UI","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Noto Sans JP",sans-serif')};font-size:${it.fontSize||12}pt;line-height:${it.lineHeight||1.5};overflow:hidden">${cells}</div>`;
+          return `<div style="${base}display:grid;grid-template-columns:repeat(${it.cols||3},1fr);grid-template-rows:repeat(${it.rows||3},1fr);font-family:${cssEsc(it.fontFamily||DEFAULT_FONT_FAMILY)};font-size:${it.fontSize||12}pt;line-height:${it.lineHeight||1.5};overflow:hidden">${cells}</div>`;
         }
         return `<div style="${base}border:.3mm solid #222"></div>`;
       }).join("");
